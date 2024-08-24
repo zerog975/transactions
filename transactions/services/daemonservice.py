@@ -4,8 +4,8 @@ Bitcoin Daemon Service
 import json
 import requests
 
-from transactions.transactions.services.service import BitcoinService
-from transactions.transactions.utils import bitcoin_to_satoshi
+from transactions.services.service import BitcoinService
+from transactions.utils import bitcoin_to_satoshi
 
 #from transactions.services.service import BitcoinService
 #from transactions.utils import bitcoin_to_satoshi
