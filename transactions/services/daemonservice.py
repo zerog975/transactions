@@ -1,81 +1,88 @@
-# -*- coding: utf-8 -*-
 """
 Bitcoin Daemon Service
-
 """
-from __future__ import absolute_import, division, unicode_literals
-
 import json
 import requests
 
-from .service import BitcoinService
-from transactions.utils import bitcoin_to_satoshi
+from transactions.transactions.services.service import BitcoinService
+from transactions.transactions.utils import bitcoin_to_satoshi
+
+#from transactions.services.service import BitcoinService
+#from transactions.utils import bitcoin_to_satoshi
+
+#class BitcoinDaemonService(BitcoinService):
+#    def __init__(self, username, password, host, port, wallet_filename=None):
+#        super(BitcoinDaemonService, self).__init__()
+#        self._username = username
+#        self._password = password
+#        self._host = host
+#        self._port = port
+#        self.wallet_filename = wallet_filename
+
+#    @property
+#    def _url(self):
+#        return 'https://%s:%s@%s:%s' % (self._username, self._password,
+#                                        self._host, self._port)
+
+#    def make_request(self, method, params=None):
+#        if params is None:
+#            params = []
+###     #Include wallet path if provided
+#        if self.wallet_filename:
+#            url = f"http://{self._username}:{self._password}@{self._host}:{self._port}/wallet/{self.wallet_filename}"
+#        else:
+#            url = f"http://{self._username}:{self._password}@{self._host}:{self._port}"    
+####
+#        try:
+#            data = json.dumps({"jsonrpc": "1.0", "params": params, "id": "", "method": method})
+#            r = requests.post(self._url, data=data, headers={'Content-type': 'application/json'}, verify=False)
+#            return json.loads(r.content)
+#        except ValueError as e:
+#            print "Some parameters were wrong, please check the request"
+#            raise e
+#        except requests.exceptions.RequestException as e:
+#            print "Bitcoin service can not be accessed. Check username, password or host"
+#            raise e
 
 
+### Updated to pass wallet in the path
 class BitcoinDaemonService(BitcoinService):
-    def __init__(self, username, password, host, port, testnet=False):
-        super(BitcoinDaemonService, self).__init__(testnet=testnet)
+    def __init__(self, username, password, host, port, wallet_filename=None):
+        super(BitcoinDaemonService, self).__init__()
         self._username = username
         self._password = password
         self._host = host
         self._port = port
-        self._session = requests.Session()
-        self._session.mount('http://', requests.adapters.HTTPAdapter(max_retries=3))
+        self.wallet_filename = wallet_filename
 
-    @property
-    def _url(self):
-        return 'http://%s:%s@%s:%s' % (self._username, self._password,
-                                       self._host, self._port)
+    def make_request(self, method, params=None):
+        if params is None:
+            params = []
+        
+        # Include wallet path if provided
+        if self.wallet_filename:
+            url = f"http://{self._username}:{self._password}@{self._host}:{self._port}/wallet/{self.wallet_filename}"
+        else:
+            url = f"http://{self._username}:{self._password}@{self._host}:{self._port}"
 
-    def make_request(self, method, params=[]):
-        data = json.dumps({"jsonrpc": "1.0", "params": params, "id": "", "method": method})
-        response = self._session.post(
-            self._url,
-            data=data,
-            headers={'Content-type': 'application/json'},
-            verify=False,
-            timeout=30,
-        )
-        return response.json()
+        try:
+            data = json.dumps({"jsonrpc": "1.0", "params": params, "id": "", "method": method})
+            r = requests.post(url, data=data, headers={'Content-type': 'application/json'}, verify=False)
+            r.raise_for_status()  # Raise an exception if the request was not successful
+            response = r.json()
+            if response.get('error'):
+                raise Exception(response['error'])
+            return response['result']
+        except ValueError as e:
+            print("Some parameters were wrong, please check the request")
+            raise e
+        except requests.exceptions.RequestException as e:
+            print("Bitcoin service cannot be accessed. Check username, password, or host")
+            raise e
 
-    def get_block_raw(self, block_hash):
-        return self.make_request('getblock', (block_hash,))
 
-    def get_block_info(self, block_hash):
-        return self.make_request('getblockheader', (block_hash,))
 
-    def getinfo(self):
-        return self.make_request('getinfo')
 
-    def generate(self, numblocks):
-        """
-        As per bitcoin-cli docs:
-
-        Mine blocks immediately (before the RPC call returns)
-
-        .. note:: this function can only be used on the regtest network
-
-        Args:
-            numblocks (int): How many blocks are generated immediately.
-
-        Returns:
-            blockhashes (List[str]): hashes of blocks generated
-
-        Examples:
-
-            Generate 11 blocks
-                >>> generate(11)
-        """
-        return self.make_request('generate', (numblocks,))
-
-    def getbalance(self):
-        return self.make_request('getbalance')
-
-    def get_new_address(self):
-        return self.make_request('getnewaddress')
-
-    def send_to_address(self, address, amount):
-        return self.make_request('sendtoaddress', params=(address, amount))
 
     def push_tx(self, tx):
         """
@@ -90,25 +97,25 @@ class BitcoinDaemonService(BitcoinService):
 
         return response
 
-    def import_address(self, address, account="*", rescan=False):
+    def import_address(self, address, label, rescan=False):
         """
         param address = address to import
         param label= account name to use
         """
-        response = self.make_request("importaddress", [address, account, rescan])
+        response = self.make_request("importaddress", [address, label, rescan])
         error = response.get('error')
         if error is not None:
             raise Exception(error)
         return response
 
-    def list_transactions(self, address, account="*", max_transactions=200):
-        response = self.make_request("listtransactions", [account, max_transactions, 0, True])
+    def list_transactions(self, address, max_transactions=200):
+        response = self.make_request("listtransactions", ["*", max_transactions, 0, True])
         error = response.get('error')
         if error is not None:
             raise Exception(error)
 
         results = response.get('result', [])
-        results = [tx for tx in results if tx.get('address', '') == address and tx.get('category', '') == 'receive']
+        results = [tx for tx in results if tx['address'] == address]
 
         out = []
         for tx in results:
@@ -133,73 +140,9 @@ class BitcoinDaemonService(BitcoinService):
                         'confirmations': unspent['confirmations']})
         return out
 
-    def get_raw_transaction(self, txid):
-        response = self.make_request('getrawtransaction', [txid, 1])
+    def get_transaction(self, txid):
+        response = self.make_request('gettransaction', [txid])
         error = response.get('error')
-        if error:
+        if error is not None:
             raise Exception(error)
-
-        raw_transaction = response.get('result')
-        return raw_transaction
-
-    def get_transaction(self, txid, raw=False):
-        raw_tx = self.get_raw_transaction(txid)
-        if raw:
-            return raw_tx
-        result = self._construct_transaction(raw_tx)
-        return result
-
-    def _get_address_for_vout(self, txid, vout_n):
-        try:
-            raw_tx = self.get_raw_transaction(txid)
-            return [vout['scriptPubKey']['addresses'][0] for vout in raw_tx['vout'] if vout['n'] == vout_n][0]
-        # TODO: Define exceptions for the daemon error messages
-        # Coinbase transaction?
-        # TODO review
-        except Exception as e:
-            if e.args and e.args[0] == {u'message': u'No information available about transaction', u'code': -5}:
-                return ''
-            else:
-                raise
-
-    def _get_value_from_vout(self, txid, vout_n):
-        try:
-            raw_tx = self.get_raw_transaction(txid)
-            return [vout['value'] for vout in raw_tx['vout'] if vout['n'] == vout_n][0]
-        # TODO: Define exceptions for the daemon error messages
-        # Coinbase transaction?
-        # TODO review
-        except Exception as e:
-            if e.args and e.args[0] == {'message': 'No information available about transaction', 'code': -5}:
-                return 0
-            else:
-                raise
-
-    def _construct_transaction(self, tx):
-        result = {}
-        result.update({'confirmations': tx.get('confirmations', ''),
-                       'time': tx.get('time', ''),
-                       'txid': tx.get('txid', ''),
-                       'vins': [{'txid': vin['txid'], 'n': vin['vout'], 'value': bitcoin_to_satoshi(self._get_value_from_vout(vin['txid'], vin['vout'])),
-                                 'address': self._get_address_for_vout(vin['txid'], vin['vout'])} for vin in tx.get('vin', [])],
-                       'vouts': [{'n': vout['n'], 'value': bitcoin_to_satoshi(vout['value']),
-                                  'asm': vout['scriptPubKey']['asm'],
-                                  'hex': vout['scriptPubKey']['hex'],
-                                  'address': vout['scriptPubKey'].get('addresses', ['NONSTANDARD'])[0]} for vout in tx.get('vout', [])]
-                       })
-        return result
-
-
-class RegtestDaemonService(BitcoinDaemonService):
-    """
-    Deamon in regtest mode.
-    This works for Bitcoin core 0.10.1 and earlier with `regtest=1` set in bitcoin.conf
-    this will generate a new block every time a transaction is pushed to the network
-    """
-    # Todo: Check bitcoin core version and set the correct method to generate a new block
-
-    def make_request(self, method, params=[]):
-        response = super(RegtestDaemonService, self).make_request(method, params)
-        if method == 'sendrawtransaction':
-            super(RegtestDaemonService, self).make_request("generate", [1])
-        return response
+        return response.get('result')
