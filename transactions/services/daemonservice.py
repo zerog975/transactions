@@ -49,7 +49,7 @@ class BitcoinDaemonService(BitcoinService):
 
         return response
 
-    def import_address(self, address, label, rescan=False):
+    def import_address(self, address, label, rescan=True):
         """
         Imports an address to the Bitcoin node.
         :param address: address to import
