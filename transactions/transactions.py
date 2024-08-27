@@ -16,12 +16,12 @@ class Transactions:
     # dust
     _dust = 600
 
-    def __init__(self, service='daemon', testnet=False, username='', password='', host='', port='', wallet_filename=None):
+    def __init__(self, service='daemon', testnet=False, username='', password='', host='', port='', walletname=None):
         if service not in SERVICES:
             raise Exception(f"Service '{service}' not supported")
         
         if service == 'daemon':
-            self._service = BitcoinDaemonService(username, password, host, port, wallet_filename)
+            self._service = BitcoinDaemonService(username, password, host, port, walletname)
         elif service == 'blockr':
             self._service = BitcoinBlockrService(testnet)
         
