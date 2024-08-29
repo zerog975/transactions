@@ -1,8 +1,9 @@
 import bitcoin
-from bitcoin.core import CMutableTransaction, CMutableTxOut, CMutableTxIn, CBitcoinAddress, CScript, OP_RETURN, lx
+from bitcoin.core import CMutableTransaction, CMutableTxOut, CMutableTxIn, CScript, OP_RETURN, lx
 from bitcoin.wallet import CBitcoinSecret, CBitcoinAddress
 from transactions.services.daemonservice import BitcoinDaemonService
 from transactions.services.blockrservice import BitcoinBlockrService
+
 
 SERVICES = ['daemon', 'blockr']
 
