@@ -1,5 +1,5 @@
 import bitcoin
-from bitcoin.core import CMutableTransaction, CMutableTxOut, CMutableTxIn, CScript, OP_RETURN, lx
+from bitcoin.core import CMutableTransaction, CMutableTxOut, CMutableTxIn, COutPoint, CScript, OP_RETURN, lx
 from bitcoin.wallet import CBitcoinSecret, CBitcoinAddress
 from transactions.services.daemonservice import BitcoinDaemonService
 from transactions.services.blockrservice import BitcoinBlockrService
@@ -72,24 +72,22 @@ class Transactions:
         tx = self.build_transaction(inputs, outputs)
         return tx
 
-
     def build_transaction(self, inputs, outputs):
         # Build transaction using python-bitcoinlib
-        
-        # Assuming inputs is a list of dictionaries with keys 'txid' and 'vout'
-        txins = [CMutableTxIn(prevout=lx(input['txid']), n=int(input['vout'])) for input in inputs]
+        txins = []
 
-        # Create the outputs
+        # Assuming inputs is a list of dictionaries with keys 'txid' and 'vout'
+        for input in inputs:
+            prevout = COutPoint(lx(input['txid']), input['vout'])
+            txins.append(CMutableTxIn(prevout))
+
         txouts = []
         for output in outputs:
             if 'script' in output:
-                # For custom script, we use the provided 'script'
                 txouts.append(CMutableTxOut(output['value'], CScript(output['script'])))
             else:
-                # For standard output, we use the Bitcoin address
-                txouts.append(CMutableTxOut(output['value'], CBitcoinAddress(output['address'])))
+                txouts.append(CMutableTxOut(output['value'], CBitcoinAddress(output['address']).to_scriptPubKey()))
 
-        # Create the mutable transaction
         tx = CMutableTransaction(txins, txouts)
         return tx
 
@@ -115,7 +113,7 @@ class Transactions:
             while balance < amount + fee:
                 unspent = unspents.pop()
                 balance += unspent['amount']
-                inputs.append(unspent)
+                inputs.append({'txid': unspent['txid'], 'vout': unspent['vout'], 'amount': unspent['amount']})
                 # update estimated fee
                 fee = self.estimate_fee(len(inputs), n_outputs)
         except IndexError:
@@ -125,9 +123,6 @@ class Transactions:
         change = change if change > self._dust else 0
 
         return inputs, change
-
-    def _op_return_hex(self, op_return):
-        return "6a%x%s" % (len(op_return), op_return.encode('utf-8').hex())
 
     def estimate_fee(self, n_inputs, n_outputs):
         # estimates transaction fee based on number of inputs and outputs
