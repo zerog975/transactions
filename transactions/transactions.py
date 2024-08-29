@@ -1,5 +1,6 @@
-import pybitcointools
-from pycoin.key.BIP32Node import BIP32Node
+import bitcoin
+from bitcoin.core import CMutableTransaction, CMutableTxOut, CMutableTxIn, CBitcoinAddress, CScript, OP_RETURN, lx
+from bitcoin.wallet import CBitcoinSecret, CBitcoinAddress
 from transactions.services.daemonservice import BitcoinDaemonService
 from transactions.services.blockrservice import BitcoinBlockrService
 
@@ -30,7 +31,7 @@ class Transactions:
 
     def push(self, tx):
         self._service.push_tx(tx)
-        return pybitcointools.txhash(tx)
+        return tx.GetHash()
 
     def get(self, hash, max_transactions=100, min_confirmations=6):
         # hash can be an address or txid of a transaction
@@ -63,18 +64,32 @@ class Transactions:
 
         # add op_return
         if op_return:
-            outputs += [{'script': self._op_return_hex(op_return), 'value': 0}]
+            # Create OP_RETURN script using python-bitcoinlib
+            op_return_script = CScript([OP_RETURN, op_return.encode('utf-8')])
+            outputs.append({'script': op_return_script, 'value': 0})
+        
         tx = self.build_transaction(inputs, outputs)
         return tx
 
     def build_transaction(self, inputs, outputs):
-        # prepare inputs and outputs for pybitcointools
-        inputs = [{'output': f"{input['txid']}:{input['vout']}", 'value': input['amount']} for input in inputs]
-        tx = pybitcointools.mktx(inputs, outputs)
+        # Build transaction using python-bitcoinlib
+        txins = [CMutableTxIn(prevout=lx(input['output'])) for input in inputs]
+        txouts = []
+
+        for output in outputs:
+            if 'script' in output:
+                txouts.append(CMutableTxOut(output['value'], output['script']))
+            else:
+                txouts.append(CMutableTxOut(output['value'], CBitcoinAddress(output['address'])))
+
+        tx = CMutableTransaction(txins, txouts)
         return tx
 
     def sign_transaction(self, tx, master_password, path=''):
-        return pybitcointools.signall(tx, BIP32Node.from_master_secret(master_password).subkey_for_path(path).wif())
+        secret = CBitcoinSecret(master_password)
+        for i, txin in enumerate(tx.vin):
+            txin.scriptSig = secret.sign(tx, i)
+        return tx
 
     def _select_inputs(self, address, amount, n_outputs=2, min_confirmations=6):
         # selects the inputs to fulfill the amount
