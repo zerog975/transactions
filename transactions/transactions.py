@@ -72,17 +72,24 @@ class Transactions:
         tx = self.build_transaction(inputs, outputs)
         return tx
 
+
     def build_transaction(self, inputs, outputs):
         # Build transaction using python-bitcoinlib
-        txins = [CMutableTxIn(prevout=lx(input['output'])) for input in inputs]
-        txouts = []
+        
+        # Assuming inputs is a list of dictionaries with keys 'txid' and 'vout'
+        txins = [CMutableTxIn(prevout=lx(input['txid']), n=int(input['vout'])) for input in inputs]
 
+        # Create the outputs
+        txouts = []
         for output in outputs:
             if 'script' in output:
-                txouts.append(CMutableTxOut(output['value'], output['script']))
+                # For custom script, we use the provided 'script'
+                txouts.append(CMutableTxOut(output['value'], CScript(output['script'])))
             else:
+                # For standard output, we use the Bitcoin address
                 txouts.append(CMutableTxOut(output['value'], CBitcoinAddress(output['address'])))
 
+        # Create the mutable transaction
         tx = CMutableTransaction(txins, txouts)
         return tx
 
