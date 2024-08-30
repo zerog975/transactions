@@ -6,7 +6,9 @@ import codecs
 import bitcoin
 from pycoin.key.BIP32Node import BIP32Node
 from pycoin.encoding import EncodingError
-from bitcoin.core import CMutableTransaction, CMutableTxIn, CMutableTxOut, COutPoint, lx, CBitcoinAddress
+from bitcoin.core import CMutableTransaction, CMutableTxIn, CMutableTxOut, COutPoint, lx
+from bitcoin.wallet import CBitcoinAddress
+
 
 from .services.daemonservice import BitcoinDaemonService
 from .services.blockrservice import BitcoinBlockrService
