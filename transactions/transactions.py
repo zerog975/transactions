@@ -3,15 +3,18 @@
 from __future__ import absolute_import, division, unicode_literals
 from builtins import object
 import codecs
+import logging
 import bitcoin
 from pycoin.key.BIP32Node import BIP32Node
 from pycoin.encoding import EncodingError
 from bitcoin.core import CMutableTransaction, CMutableTxIn, CMutableTxOut, COutPoint, lx
-from bitcoin.wallet import CBitcoinAddress
-
+from bitcoin.wallet import CBitcoinAddress, CBitcoinAddressError
 
 from .services.daemonservice import BitcoinDaemonService
 from .services.blockrservice import BitcoinBlockrService
+
+# Initialize logging
+logging.basicConfig(level=logging.DEBUG)
 
 SERVICES = ['daemon', 'blockr']
 
@@ -37,7 +40,6 @@ class Transactions(object):
             host (str): host of the bitcoin daemon
             port (str): port of the bitcoin daemon
             wallet_filename (str): the name of the wallet to use with the bitcoin daemon
-
         """
         self.testnet = testnet
 
@@ -83,6 +85,23 @@ class Transactions(object):
         if self._service.name.startswith('BitcoinDaemonService'):
             self._service.import_address(address, account, rescan=rescan)
 
+    def validate_address(self, address):
+        """
+        Validates a Bitcoin address.
+
+        Args:
+            address (str): Bitcoin address to validate.
+        
+        Raises:
+            CBitcoinAddressError: If the address is invalid.
+        """
+        try:
+            CBitcoinAddress(address)
+            logging.debug(f"Validated address: {address}")
+        except CBitcoinAddressError as e:
+            logging.error(f"Invalid address {address}: {e}")
+            raise e
+
     def simple_transaction(self, from_address, to, op_return=None, min_confirmations=6):
         """
         Args:
@@ -99,6 +118,11 @@ class Transactions(object):
         n_outputs = len(to) + 1  # change
         if op_return:
             n_outputs += 1
+
+        # Validate the from_address and to addresses
+        self.validate_address(from_address)
+        for to_address, _ in to:
+            self.validate_address(to_address)
 
         # select inputs
         inputs, change = self._select_inputs(from_address, amount, n_outputs, min_confirmations=min_confirmations)
