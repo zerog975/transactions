@@ -1,46 +1,89 @@
+#### latest version from the repo
 # -*- coding: utf-8 -*-
 
-from __future__ import annotations
+from __future__ import absolute_import, division, unicode_literals
+from builtins import object
 
 import codecs
-from typing import Union, List, Dict, Any
 
-from bit import PrivateKey, PrivateKeyTestnet
-from bit.network import NetworkAPI
-from bit.transaction import calc_txid
+import bitcoin
 from pycoin.key.BIP32Node import BIP32Node
 from pycoin.encoding import EncodingError
 
-from .services.daemonservice import BitcoinDaemonService, RegtestDaemonService
+from .services.daemonservice import BitcoinDaemonService
 from .services.blockrservice import BitcoinBlockrService
+from bitcoin.core import CMutableTransaction, CMutableTxIn, CMutableTxOut, COutPoint, lx
+
+SERVICES = ['daemon', 'blockr']
 
 
-SERVICES = ['daemon', 'blockr', 'regtest']
+#class Transactions(object):
+#    """
+#    Transactions: Bitcoin for Humans
 
+#    All amounts are in satoshi
+#    """
 
-class Transactions:
+    # Transaction fee per 1k bytes
+#    _min_tx_fee = 10000
+    # dust
+#    _dust = 600
+
+#    def __init__(self, service='blockr', testnet=False, username='', password='', host='', port=''):
+#        """
+#        Args:
+#            service (str): currently supports _blockr_ for blockr.io and and _daemon_ for bitcoin daemon. Defaults to _blockr_
+#            testnet (bool): use True if you want to use tesnet. Defaults to False
+#            username (str): username to connect to the bitcoin daemon
+#            password (str): password to connect to the bitcoin daemon
+#            hosti (str): host of the bitcoin daemon
+#            port (str): port of the bitcoin daemon
+
+#        """
+#        self.testnet = testnet
+
+#        if service not in SERVICES:
+#            raise Exception("Service '{}' not supported".format(service))
+#        if service == 'daemon':
+#            self._service = BitcoinDaemonService(username, password, host, port, testnet)
+#        elif service == 'blockr':
+#            self._service = BitcoinBlockrService(testnet)
+#        elif service == 'regtest':
+#            self.testnet = True
+#            self._service = RegtestDaemonService(username, password, host, port, testnet)
+
+#        self._min_tx_fee = self._service._min_transaction_fee
+#        self._dust = self._service._min_dust
+
+##### Updated to include wallet_filename
+class Transactions(object):
     """
     Transactions: Bitcoin for Humans
 
     All amounts are in satoshi
     """
 
-    def __init__(self, service: str = 'daemon', testnet: bool = True, username: str = '', password: str = '', host: str = '', port: str = '', wallet_filename: str = ''):
+    # Transaction fee per 1k bytes
+    _min_tx_fee = 10000
+    # dust
+    _dust = 600
+
+    def __init__(self, service='daemon', testnet=False, username='', password='', host='', port='', wallet_filename=''):
         """
         Args:
-            service: currently supports _blockr_ for blockr.io and and _daemon_ for bitcoin daemon. Defaults to _blockr_
-            testnet: use True if you want to use testnet. Defaults to False
-            username: username to connect to the bitcoin daemon
-            password: password to connect to the bitcoin daemon
-            host: host of the bitcoin daemon
-            port: port of the bitcoin daemon
-            wallet_filename: the name of the wallet to use with the bitcoin daemon
+            service (str): currently supports _blockr_ for blockr.io and and _daemon_ for bitcoin daemon. Defaults to _blockr_
+            testnet (bool): use True if you want to use tesnet. Defaults to False
+            username (str): username to connect to the bitcoin daemon
+            password (str): password to connect to the bitcoin daemon
+            host (str): host of the bitcoin daemon
+            port (str): port of the bitcoin daemon
+            wallet_filename (str): the name of the wallet to use with the bitcoin daemon
+
         """
         self.testnet = testnet
 
         if service not in SERVICES:
-            raise ValueError(f"Service '{service}' not supported")
-        
+            raise Exception("Service '{}' not supported".format(service))
         if service == 'daemon':
             self._service = BitcoinDaemonService(username, password, host, port, testnet, wallet_filename)
         elif service == 'blockr':
@@ -52,178 +95,224 @@ class Transactions:
         self._min_tx_fee = self._service._min_transaction_fee
         self._dust = self._service._min_dust
 
-    def push(self, tx: str) -> str:
+
+    def push(self, tx):
         """
         Args:
             tx: hex of signed transaction
         Returns:
             pushed transaction
+
         """
         self._service.push_tx(tx)
-        return calc_txid(tx)
+        return bitcoin.txhash(tx)
 
-    def get(self, address: str, account: str = "*", max_transactions: int = 100, min_confirmations: int = 6, raw: bool = False) -> Dict[str, Any]:
+    def get(self, hash, account="*", max_transactions=100, min_confirmations=6, raw=False):
         """
         Args:
-            address: bitcoin address or a transaction id. If it's a
+            hash: can be a bitcoin address or a transaction id. If it's a
                 bitcoin address it will return a list of transactions up to
                 ``max_transactions`` a list of unspents with confirmed
-                transactions greater or equal to ``min_confirmations``
-            account: used when using the bitcoind. bitcoind
+                transactions greater or equal to ``min_confirmantions``
+            account (Optional[str]): used when using the bitcoind. bitcoind
                 does not provide an easy way to retrieve transactions for a
                 single address. By using account we can retrieve transactions
-                for addresses in a specific account
+                for addresses in a  specific account
         Returns:
             transaction
+
         """
-        if len(address) < 64:
-            txs = self._service.list_transactions(address, account=account, max_transactions=max_transactions)
-            unspents = self._service.list_unspents(address, min_confirmations=min_confirmations)
+        if len(hash) < 64:
+            txs = self._service.list_transactions(hash, account=account, max_transactions=max_transactions)
+            unspents = self._service.list_unspents(hash, min_confirmations=min_confirmations)
             return {'transactions': txs, 'unspents': unspents}
         else:
-            return self._service.get_transaction(address, raw=raw)
+            return self._service.get_transaction(hash, raw=raw)
 
-    def import_address(self, address: str, account: str = "", rescan: bool = False):
+    def import_address(self, address, account="", rescan=False):
         if self._service.name.startswith('BitcoinDaemonService') or \
                 self._service.name.startswith('RegtestDaemonService'):
             self._service.import_address(address, account, rescan=rescan)
 
-    def simple_transaction(self, from_address: str, to: Union[tuple, List[tuple]], op_return: str = None, min_confirmations: int = 6) -> str:
+    def simple_transaction(self, from_address, to, op_return=None, min_confirmations=6):
         """
         Args:
-            from_address: bitcoin address originating the transaction
+            from_address (str): bitcoin address originating the transaction
             to: tuple of ``(to_address, amount)`` or list of tuples ``[(to_addr1, amount1), (to_addr2, amount2)]``. Amounts are in *satoshi*
-            op_return: ability to set custom ``op_return``
-            min_confirmations: minimal number of required confirmations
+            op_return (str): ability to set custom ``op_return``
+            min_confirmations (int): minimal number of required confirmations
 
         Returns:
             transaction
+
         """
         to = [to] if not isinstance(to, list) else to
-        amount = sum(amount for _, amount in to)
-        n_outputs = len(to) + 1  # change
+        amount = sum([amount for addr, amount in to])
+        n_outputs = len(to) + 1     # change
         if op_return:
             n_outputs += 1
 
         # select inputs
         inputs, change = self._select_inputs(from_address, amount, n_outputs, min_confirmations=min_confirmations)
-        outputs = [(to_address, amount, 'satoshi') for to_address, amount in to]
-        if change > 0:
-            outputs.append((from_address, change, 'satoshi'))
+        outputs = [{'address': to_address, 'value': amount} for to_address, amount in to]
+        outputs += [{'address': from_address, 'value': change}]
 
-        # add op_return
+        #add op_return
         if op_return:
-            outputs.append((op_return, 0, 'satoshi'))
-
-        key = PrivateKeyTestnet(from_address) if self.testnet else PrivateKey(from_address)
-        tx = key.create_transaction(outputs, fee=self._min_tx_fee, absolute_fee=True, combine=False, unspents=inputs)
+            outputs += [{'script': self._op_return_hex(op_return), 'value': 0}]
+        tx = self.build_transaction(inputs, outputs)
         return tx
 
-    def sign_transaction(self, tx: str, master_password: str, path: str = '') -> str:
-        """
-        Args:
-            tx: hex transaction to sign
-            master_password: master password for BIP32 wallets. Can be either a
-                master_secret or a wif
-            path: optional path to the leaf address of the
-                BIP32 wallet. This allows us to retrieve private key for the
-                leaf address if one was used to construct the transaction.
-        Returns:
-            signed transaction
+from bitcoin.core import CMutableTransaction, CMutableTxIn, CMutableTxOut, COutPoint, lx
 
-        .. note:: Only BIP32 hierarchical deterministic wallets are currently
-            supported.
-        """
-        netcode = 'XTN' if self.testnet else 'BTC'
+def build_transaction(self, inputs, outputs):
+    """
+    Build transaction using python-bitcoinlib
 
-        try:
-            key = BIP32Node.from_text(master_password)
-        except (AttributeError, EncodingError):
-            # if it's not get the wif from the master secret
-            key = BIP32Node.from_master_secret(master_password.encode(), netcode=netcode).subkey_for_path(path)
-        
-        private_key = PrivateKeyTestnet(key.wif()) if self.testnet else PrivateKey(key.wif())
-        return private_key.sign_transaction(tx)
+    Args:
+        inputs (list): inputs in the form of
+            [{'txid': '...', 'vout': 0, 'amount': 10000}, ...]
+        outputs (list): outputs in the form of
+            [{'address': '...', 'value': 5000}, {'script': CScript([...]), 'value': 0}, ...]
 
-    def _select_inputs(self, address: str, amount: int, n_outputs: int = 2, min_confirmations: int = 6) -> tuple:
+    Returns:
+        CMutableTransaction: unsigned transaction object
+    """
+    txins = []
+
+    # Build the list of transaction inputs
+    for input in inputs:
+        prevout = COutPoint(lx(input['txid']), input['vout'])
+        txins.append(CMutableTxIn(prevout))
+
+    txouts = []
+
+    # Build the list of transaction outputs
+    for output in outputs:
+        if 'script' in output:
+            txouts.append(CMutableTxOut(output['value'], output['script']))
+        else:
+            txouts.append(CMutableTxOut(output['value'], CBitcoinAddress(output['address']).to_scriptPubKey()))
+
+    # Create the unsigned transaction
+    tx = CMutableTransaction(txins, txouts)
+    return tx
+
+
+def sign_transaction(self, tx, master_password, path=''):
+    """
+    Args:
+        tx: hex transaction to sign
+        master_password: master password for BIP32 wallets. Can be either a
+            master_secret or a wif
+        path (Optional[str]): optional path to the leaf address of the
+            BIP32 wallet. This allows us to retrieve private key for the
+            leaf address if one was used to construct the transaction.
+    Returns:
+        signed transaction
+
+    .. note:: Only BIP32 hierarchical deterministic wallets are currently
+        supported.
+
+    """
+    netcode = 'XTN' if self.testnet else 'BTC'
+
+        # TODO review
+        # check if its a wif
+    try:
+        BIP32Node.from_text(master_password)
+        return bitcoin.signall(tx, master_password)
+    except (AttributeError, EncodingError):
+        # if its not get the wif from the master secret
+        return bitcoin.signall(tx, BIP32Node.from_master_secret(master_password, netcode=netcode).subkey_for_path(path).wif())
+
+def _select_inputs(self, address, amount, n_outputs=2, min_confirmations=6):
         # selects the inputs to fulfill the amount
         # returns a list of inputs and the change
-        unspents = self.get(address, min_confirmations=min_confirmations)['unspents']
-        if not unspents:
-            raise ValueError("No spendable outputs found")
+    unspents = self.get(address, min_confirmations=min_confirmations)['unspents']
+    if len(unspents) == 0:
+        raise Exception("No spendable outputs found")
 
-        unspents = sorted(unspents, key=lambda d: d['amount'])
-        balance = 0
-        inputs = []
-        fee = self._service._min_transaction_fee
-        try:
-            # get coins to fulfill the amount
-            while balance < amount + fee:
-                unspent = unspents.pop()
-                balance += unspent['amount']
-                inputs.append(unspent)
-                # update estimated fee
-                fee = self.estimate_fee(len(inputs), n_outputs)
-        except IndexError:
-            raise ValueError("Not enough balance in the wallet")
+    unspents = sorted(unspents, key=lambda d: d['amount'])
+    balance = 0
+    inputs = []
+    fee = self._service._min_transaction_fee
+    try:
+        # get coins to fulfill the amount
+        while balance < amount + fee:
+            unspent = unspents.pop()
+            balance += unspent['amount']
+            inputs.append(unspent)
+            # update estimated fee
+            fee = self.estimate_fee(len(inputs), n_outputs)
+    except IndexError:
+        raise Exception("Not enough balance in the wallet")
 
-        change = balance - amount - fee
-        change = change if change > self._dust else 0
+    change = balance - amount - fee
+    change = change if change > self._dust else 0
 
-        return inputs, change
+    return inputs, change
 
-    def _op_return_hex(self, op_return: str) -> str:
+def _op_return_hex(self, op_return):
+    try:
+        hex_op_return = codecs.encode(op_return, 'hex')
+    except TypeError:
         hex_op_return = codecs.encode(op_return.encode('utf-8'), 'hex')
-        return f"6a{len(op_return):x}{hex_op_return.decode('utf-8')}"
 
-    def estimate_fee(self, n_inputs: int, n_outputs: int) -> int:
+    return "6a%x%s" % (len(op_return), hex_op_return.decode('utf-8'))
+
+def estimate_fee(self, n_inputs, n_outputs):
         # estimates transaction fee based on number of inputs and outputs
-        estimated_size = 10 + 148 * n_inputs + 34 * n_outputs
-        return (estimated_size // 1000 + 1) * self._min_tx_fee
+    estimated_size = 10 + 148 * n_inputs + 34 * n_outputs
+    return (estimated_size // 1000 + 1) * self._min_tx_fee
 
-    def decode(self, tx: str) -> Dict[str, Any]:
-        """
-        Decodes the given transaction.
+def decode(self, tx):
+    """
+    Decodes the given transaction.
 
-        Args:
-            tx: hex of transaction
-        Returns:
-            decoded transaction
+    Args:
+        tx: hex of transaction
+    Returns:
+        decoded transaction
 
-        .. note:: Only supported for blockr.io at the moment.
-        """
-        if not isinstance(self._service, BitcoinBlockrService):
-            raise NotImplementedError('Currently only supported for "blockr.io"')
-        return self._service.decode(tx)
+    .. note:: Only supported for blockr.io at the moment.
 
-    def get_block_raw(self, block: Union[str, int]) -> Dict[str, Any]:
-        """
-        Args:
-            block: block hash (eg: 0000000000000000210b10d620600dc1cc2380bb58eb2408f9767eb792ed31fa)
-                block number (eg: 223212) - only for blockr
-                word "last" - this will always return the latest block - only
-                    for blockr
-                word "first" - this will always return the first block - only
-                    for blockr
-        Returns:
-            raw block data
-        """
-        return self._service.get_block_raw(block)
+    """
+    if not isinstance(self._service, BitcoinBlockrService):
+        raise NotImplementedError('Currently only supported for "blockr.io"')
+    return self._service.decode(tx)
 
-    def get_block_info(self, block: Union[str, int]) -> Dict[str, Any]:
-        """
-        Args:
-            block: block hash (eg: 0000000000000000210b10d620600dc1cc2380bb58eb2408f9767eb792ed31fa)
-                block number (eg: 223212) - only for blockr
-                word "last" - this will always return the latest block - only
-                    for blockr
-                word "first" - this will always return the first block - only
-                    for blockr
-        Returns:
-            basic block data
-        """
-        return self._service.get_block_info(block)
+def get_block_raw(self, block):
+    """
+    Args:
+        block: block hash (eg: 0000000000000000210b10d620600dc1cc2380bb58eb2408f9767eb792ed31fa)
+            block number (eg: 223212) - only for blockr
+            word "last" - this will always return the latest block - only
+                for blockr
+            word "first" - this will always return the first block - only
+                for blockr
+    Returns:
+        raw block data
+
+    """
+    return self._service.get_block_raw(block)
+
+def get_block_info(self, block):
+    """
+    Args:
+        block: block hash (eg: 0000000000000000210b10d620600dc1cc2380bb58eb2408f9767eb792ed31fa)
+            block number (eg: 223212) - only for blockr
+            word "last" - this will always return the latest block - only
+                for blockr
+            word "first" - this will always return the first block - only
+                for blockr
+    Returns:
+        basic block data
+
+    """
+    return self._service.get_block_info(block)
+
 
     # To simplify a bit the method names
-    create = simple_transaction
-    sign = sign_transaction
+create = simple_transaction
+sign = sign_transaction
