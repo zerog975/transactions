@@ -353,120 +353,120 @@ def build_transaction(self, inputs, outputs):
     tx = CMutableTransaction(txins, txouts)
     return tx
 
-    def sign_transaction(self, tx, master_password, path=''):
-        """
-        Args:
-            tx: hex transaction to sign
-            master_password: master password for BIP32 wallets. Can be either a
-                master_secret or a wif
-            path (Optional[str]): optional path to the leaf address of the
-                BIP32 wallet. This allows us to retrieve private key for the
-                leaf address if one was used to construct the transaction.
+def sign_transaction(self, tx, master_password, path=''):
+    """
+    Args:
+        tx: hex transaction to sign
+        master_password: master password for BIP32 wallets. Can be either a
+        master_secret or a wif
+        path (Optional[str]): optional path to the leaf address of the
+        BIP32 wallet. This allows us to retrieve private key for the
+        leaf address if one was used to construct the transaction.
         Returns:
             signed transaction
 
         .. note:: Only BIP32 hierarchical deterministic wallets are currently
             supported.
 
-        """
-        netcode = 'XTN' if self.testnet else 'BTC'
+    """
+    netcode = 'XTN' if self.testnet else 'BTC'
 
         # TODO review
         # check if its a wif
-        try:
-            BIP32Node.from_text(master_password)
-            return bitcoin.signall(tx, master_password)
-        except (AttributeError, EncodingError):
+    try:
+        BIP32Node.from_text(master_password)
+        return bitcoin.signall(tx, master_password)
+    except (AttributeError, EncodingError):
             # if its not get the wif from the master secret
-            return bitcoin.signall(tx, BIP32Node.from_master_secret(master_password, netcode=netcode).subkey_for_path(path).wif())
+        return bitcoin.signall(tx, BIP32Node.from_master_secret(master_password, netcode=netcode).subkey_for_path(path).wif())
 
-    def _select_inputs(self, address, amount, n_outputs=2, min_confirmations=6):
-        # selects the inputs to fulfill the amount
-        # returns a list of inputs and the change
-        unspents = self.get(address, min_confirmations=min_confirmations)['unspents']
-        if len(unspents) == 0:
-            raise Exception("No spendable outputs found")
+def _select_inputs(self, address, amount, n_outputs=2, min_confirmations=6):
+    # selects the inputs to fulfill the amount
+    # returns a list of inputs and the change
+    unspents = self.get(address, min_confirmations=min_confirmations)['unspents']
+    if len(unspents) == 0:
+        raise Exception("No spendable outputs found")
 
-        unspents = sorted(unspents, key=lambda d: d['amount'])
-        balance = 0
-        inputs = []
-        fee = self._service._min_transaction_fee
-        try:
-            # get coins to fulfill the amount
-            while balance < amount + fee:
-                unspent = unspents.pop()
-                balance += unspent['amount']
-                inputs.append(unspent)
-                # update estimated fee
-                fee = self.estimate_fee(len(inputs), n_outputs)
-        except IndexError:
-            raise Exception("Not enough balance in the wallet")
+    unspents = sorted(unspents, key=lambda d: d['amount'])
+    balance = 0
+    inputs = []
+    fee = self._service._min_transaction_fee
+    try:
+        # get coins to fulfill the amount
+        while balance < amount + fee:
+            unspent = unspents.pop()
+            balance += unspent['amount']
+            inputs.append(unspent)
+            # update estimated fee
+            fee = self.estimate_fee(len(inputs), n_outputs)
+    except IndexError:
+        raise Exception("Not enough balance in the wallet")
 
-        change = balance - amount - fee
-        change = change if change > self._dust else 0
+    change = balance - amount - fee
+    change = change if change > self._dust else 0
 
-        return inputs, change
+    return inputs, change
 
-    def _op_return_hex(self, op_return):
-        try:
-            hex_op_return = codecs.encode(op_return, 'hex')
-        except TypeError:
-            hex_op_return = codecs.encode(op_return.encode('utf-8'), 'hex')
+def _op_return_hex(self, op_return):
+    try:
+        hex_op_return = codecs.encode(op_return, 'hex')
+    except TypeError:
+        hex_op_return = codecs.encode(op_return.encode('utf-8'), 'hex')
 
-        return "6a%x%s" % (len(op_return), hex_op_return.decode('utf-8'))
+    return "6a%x%s" % (len(op_return), hex_op_return.decode('utf-8'))
 
-    def estimate_fee(self, n_inputs, n_outputs):
-        # estimates transaction fee based on number of inputs and outputs
-        estimated_size = 10 + 148 * n_inputs + 34 * n_outputs
-        return (estimated_size // 1000 + 1) * self._min_tx_fee
+def estimate_fee(self, n_inputs, n_outputs):
+    # estimates transaction fee based on number of inputs and outputs
+    estimated_size = 10 + 148 * n_inputs + 34 * n_outputs
+    return (estimated_size // 1000 + 1) * self._min_tx_fee
 
-    def decode(self, tx):
-        """
-        Decodes the given transaction.
+def decode(self, tx):
+    """
+    Decodes the given transaction.
 
-        Args:
-            tx: hex of transaction
-        Returns:
-            decoded transaction
+    Args:
+        tx: hex of transaction
+    Returns:
+        decoded transaction
 
-        .. note:: Only supported for blockr.io at the moment.
+    .. note:: Only supported for blockr.io at the moment.
 
-        """
-        if not isinstance(self._service, BitcoinBlockrService):
-            raise NotImplementedError('Currently only supported for "blockr.io"')
-        return self._service.decode(tx)
+    """
+    if not isinstance(self._service, BitcoinBlockrService):
+        raise NotImplementedError('Currently only supported for "blockr.io"')
+    return self._service.decode(tx)
 
-    def get_block_raw(self, block):
-        """
-        Args:
-            block: block hash (eg: 0000000000000000210b10d620600dc1cc2380bb58eb2408f9767eb792ed31fa)
-                block number (eg: 223212) - only for blockr
-                word "last" - this will always return the latest block - only
-                    for blockr
-                word "first" - this will always return the first block - only
-                    for blockr
-        Returns:
-            raw block data
+def get_block_raw(self, block):
+    """
+    Args:
+        block: block hash (eg: 0000000000000000210b10d620600dc1cc2380bb58eb2408f9767eb792ed31fa)
+            block number (eg: 223212) - only for blockr
+            word "last" - this will always return the latest block - only
+                for blockr
+            word "first" - this will always return the first block - only
+                for blockr
+    Returns:
+        raw block data
 
-        """
-        return self._service.get_block_raw(block)
+    """
+    return self._service.get_block_raw(block)
 
-    def get_block_info(self, block):
-        """
-        Args:
-            block: block hash (eg: 0000000000000000210b10d620600dc1cc2380bb58eb2408f9767eb792ed31fa)
-                block number (eg: 223212) - only for blockr
-                word "last" - this will always return the latest block - only
-                    for blockr
-                word "first" - this will always return the first block - only
-                    for blockr
-        Returns:
-            basic block data
+def get_block_info(self, block):
+    """
+    Args:
+        block: block hash (eg: 0000000000000000210b10d620600dc1cc2380bb58eb2408f9767eb792ed31fa)
+            block number (eg: 223212) - only for blockr
+            word "last" - this will always return the latest block - only
+                for blockr
+            word "first" - this will always return the first block - only
+                for blockr
+    Returns:
+        basic block data
 
-        """
-        return self._service.get_block_info(block)
+    """
+    return self._service.get_block_info(block)
 
 
     # To simplify a bit the method names
-    create = simple_transaction
-    sign = sign_transaction
+create = simple_transaction
+sign = sign_transaction
