@@ -205,7 +205,7 @@ class Transactions(object):
         if not unspents:
             raise Exception("No spendable outputs found")
 
-        unspents are sorted, with the smallest amounts first
+        #unspents are sorted, with the smallest amounts first
         unspents = sorted(unspents, key=lambda d: d['amount'])
         balance, inputs = 0, []
         fee = self._service._min_transaction_fee
