@@ -169,7 +169,7 @@ from pycoin.encoding import EncodingError
 
 from .services.daemonservice import BitcoinDaemonService, RegtestDaemonService
 from .services.blockrservice import BitcoinBlockrService
-
+from bitcoin.core import CMutableTransaction, CMutableTxIn, CMutableTxOut, COutPoint, lx
 
 SERVICES = ['daemon', 'blockr', 'regtest']
 
@@ -320,23 +320,38 @@ class Transactions(object):
         tx = self.build_transaction(inputs, outputs)
         return tx
 
-    def build_transaction(self, inputs, outputs):
-        """
-        Thin wrapper around ``bitcoin.mktx(inputs, outputs)``
+def build_transaction(self, inputs, outputs):
+    """
+    Build transaction using python-bitcoinlib
 
-        Args:
-            inputs (dict): inputs in the form of
-                ``{'output': 'txid:vout', 'value': amount in satoshi}``
-            outputs (dict): outputs in the form of
-                ``{'address': to_address, 'value': amount in satoshi}``
-        Returns:
-            transaction
-        """
-        # prepare inputs and outputs for bitcoin
-        inputs = [{'output': '{}:{}'.format(input['txid'], input['vout']),
-                   'value': input['amount']} for input in inputs]
-        tx = bitcoin.mktx(inputs, outputs)
-        return tx
+    Args:
+        inputs (list): inputs in the form of
+            [{'txid': '...', 'vout': 0, 'amount': 10000}, ...]
+        outputs (list): outputs in the form of
+            [{'address': '...', 'value': 5000}, {'script': CScript([...]), 'value': 0}, ...]
+
+    Returns:
+        CMutableTransaction: unsigned transaction object
+    """
+    txins = []
+
+    # Build the list of transaction inputs
+    for input in inputs:
+        prevout = COutPoint(lx(input['txid']), input['vout'])
+        txins.append(CMutableTxIn(prevout))
+
+    txouts = []
+
+    # Build the list of transaction outputs
+    for output in outputs:
+        if 'script' in output:
+            txouts.append(CMutableTxOut(output['value'], output['script']))
+        else:
+            txouts.append(CMutableTxOut(output['value'], CBitcoinAddress(output['address']).to_scriptPubKey()))
+
+    # Create the unsigned transaction
+    tx = CMutableTransaction(txins, txouts)
+    return tx
 
     def sign_transaction(self, tx, master_password, path=''):
         """
