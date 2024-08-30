@@ -1,3 +1,17 @@
+# -*- coding: utf-8 -*-
+"""
+Bitcoin Daemon Service
+
+"""
+from __future__ import absolute_import, division, unicode_literals
+
+import json
+import requests
+
+from .service import BitcoinService
+from transactions.utils import bitcoin_to_satoshi
+
+
 class BitcoinDaemonService(BitcoinService):
     def __init__(self, username, password, host, port, testnet=False, wallet_filename=None):
         super(BitcoinDaemonService, self).__init__(testnet=testnet)
