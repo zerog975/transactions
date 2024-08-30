@@ -72,24 +72,49 @@ class Transactions:
         tx = self.build_transaction(inputs, outputs)
         return tx
 
-    def build_transaction(self, inputs, outputs):
-        # Build transaction using python-bitcoinlib
-        txins = []
+    #def build_transaction(self, inputs, outputs):
+    #    # Build transaction using python-bitcoinlib
+    #    txins = []
 
         # Assuming inputs is a list of dictionaries with keys 'txid' and 'vout'
-        for input in inputs:
-            prevout = COutPoint(lx(input['txid']), input['vout'])
-            txins.append(CMutableTxIn(prevout))
+    #    for input in inputs:
+    #        prevout = COutPoint(lx(input['txid']), input['vout'])
+    #        txins.append(CMutableTxIn(prevout))
 
-        txouts = []
-        for output in outputs:
-            if 'script' in output:
-                txouts.append(CMutableTxOut(output['value'], CScript(output['script'])))
-            else:
-                txouts.append(CMutableTxOut(output['value'], CBitcoinAddress(output['address']).to_scriptPubKey()))
+    #    txouts = []
+    #    for output in outputs:
+    #        if 'script' in output:
+    #            txouts.append(CMutableTxOut(output['value'], CScript(output['script'])))
+    #        else:
+    #            txouts.append(CMutableTxOut(output['value'], CBitcoinAddress(output['address']).to_scriptPubKey()))
 
-        tx = CMutableTransaction(txins, txouts)
-        return tx
+    #    tx = CMutableTransaction(txins, txouts)
+    #    return tx
+
+
+### updated to include address validation
+
+def build_transaction(self, inputs, outputs):
+    # Build transaction using python-bitcoinlib
+    txins = []
+
+    # Assuming inputs is a list of dictionaries with keys 'txid' and 'vout'
+    for input in inputs:
+        prevout = COutPoint(lx(input['txid']), input['vout'])
+        txins.append(CMutableTxIn(prevout))
+
+    txouts = []
+    for output in outputs:
+        if 'script' in output:
+            txouts.append(CMutableTxOut(output['value'], CScript(output['script'])))
+        else:
+            # Validate and ensure this is a legacy address
+            validate_legacy_address(output['address'])
+            txouts.append(CMutableTxOut(output['value'], CBitcoinAddress(output['address']).to_scriptPubKey()))
+
+    tx = CMutableTransaction(txins, txouts)
+    return tx
+
 
     def sign_transaction(self, tx, master_password, path=''):
         secret = CBitcoinSecret(master_password)
