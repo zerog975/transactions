@@ -137,6 +137,29 @@ class BitcoinDaemonService(BitcoinService):
         
         return response.get('result', response)
 
+    def make_request(self, method, params=None):
+        if params is None:
+            params = []
+        
+        # Include wallet path if provided
+        if self.wallet_filename:
+            url = f"http://{self._username}:{self._password}@{self._host}:{self._port}/wallet/{self.wallet_filename}"
+        else:
+            url = f"http://{self._username}:{self._password}@{self._host}:{self._port}"
+
+        try:
+            data = json.dumps({"jsonrpc": "1.0", "params": params, "id": "", "method": method})
+            r = requests.post(url, data=data, headers={'Content-type': 'application/json'}, verify=False)
+            r.raise_for_status()  # Raise an exception if the request was not successful
+            response = r.json()
+            return self._handle_response(response)
+        except ValueError as e:
+            print("Some parameters were wrong, please check the request")
+            raise e
+        except requests.exceptions.RequestException as e:
+            print("Bitcoin service cannot be accessed. Check username, password, or host")
+            raise e
+
     def push_tx(self, tx):
         """
         :param tx: signed transaction hash
@@ -154,6 +177,7 @@ class BitcoinDaemonService(BitcoinService):
         """
         response = self.make_request("importaddress", [address, label, rescan])
         return self._handle_response(response)
+
 
     def list_transactions(self, address, max_transactions=200):
         """
