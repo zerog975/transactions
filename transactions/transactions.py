@@ -5,8 +5,8 @@ from builtins import object
 import codecs
 import logging
 import bitcoin
-import os
 bitcoin.SelectParams('testnet')
+import os
 # Get the network from the environment variable
 #network = os.getenv('BITCOIN_NETWORK', 'mainnet')
 
@@ -19,10 +19,10 @@ bitcoin.SelectParams('testnet')
 #}
 
 # Select the correct Bitcoin network parameters
-if network in network_map:
-    bitcoin.SelectParams(network_map[network])
-else:
-    raise ValueError(f"Invalid BITCOIN_NETWORK value: {network}. Expected one of {list(network_map.keys())}.")
+#if network in network_map:
+#    bitcoin.SelectParams(network_map[network])
+#else:
+#    raise ValueError(f"Invalid BITCOIN_NETWORK value: {network}. Expected one of {list(network_map.keys())}.")
 
 from pycoin.key.BIP32Node import BIP32Node
 from pycoin.encoding import EncodingError
