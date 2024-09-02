@@ -5,6 +5,7 @@ from builtins import object
 import codecs
 import logging
 import bitcoin
+bitcoin.SelectParams('testnet')
 from pycoin.key.BIP32Node import BIP32Node
 from pycoin.encoding import EncodingError
 from bitcoin.core import CMutableTransaction, CMutableTxIn, CMutableTxOut, COutPoint, lx
