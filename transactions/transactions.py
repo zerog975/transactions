@@ -26,7 +26,7 @@ SERVICES = ['daemon']
 #    SelectParams(network)
 ##except Exception as e:
  #   raise ValueError(f"Failed to select network parameters for {network}: {e}")
-bitcoin.SelectParams ('testnet')
+#bitcoin.SelectParams ('testnet')
 
 
 
