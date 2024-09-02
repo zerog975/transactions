@@ -5,7 +5,7 @@ from builtins import object
 import codecs
 import logging
 import bitcoin
-bitcoin.SelectParams('testnet')
+#bitcoin.SelectParams('testnet')
 import os
 # Get the network from the environment variable
 #network = os.getenv('BITCOIN_NETWORK', 'mainnet')
