@@ -6,17 +6,17 @@ import codecs
 import logging
 import bitcoin
 import os
-#bitcoin.SelectParams('testnet')
+bitcoin.SelectParams('testnet')
 # Get the network from the environment variable
-network = os.getenv('BITCOIN_NETWORK', 'mainnet')
+#network = os.getenv('BITCOIN_NETWORK', 'mainnet')
 
 # Map the environment variable to valid values for bitcoin.SelectParams
-network_map = {
-    'mainnet': 'mainnet',
-    'testnet': 'testnet',
-    'regtest': 'regtest',
-    'signet': 'signet'
-}
+#network_map = {
+#    'mainnet': 'mainnet',
+#    'testnet': 'testnet',
+#    'regtest': 'regtest',
+#    'signet': 'signet'
+#}
 
 # Select the correct Bitcoin network parameters
 if network in network_map:
