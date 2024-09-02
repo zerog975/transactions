@@ -4,43 +4,30 @@ from __future__ import absolute_import, division, unicode_literals
 from builtins import object
 import codecs
 import logging
-import bitcoin
-#bitcoin.SelectParams('testnet')
 import os
-# Get the network from the environment variable
-#network = os.getenv('BITCOIN_NETWORK', 'mainnet')
 
-# Map the environment variable to valid values for bitcoin.SelectParams
-#network_map = {
-#    'mainnet': 'mainnet',
-#    'testnet': 'testnet',
-#    'regtest': 'regtest',
-#    'signet': 'signet'
-#}
-
-# Select the correct Bitcoin network parameters
-#if network in network_map:
-#    bitcoin.SelectParams(network_map[network])
-#else:
-#    raise ValueError(f"Invalid BITCOIN_NETWORK value: {network}. Expected one of {list(network_map.keys())}.")
-# Ensure network parameter is set correctly
-network = os.getenv('BITCOIN_NETWORK', 'testnet')
-
-try:
-    bitcoin.SelectParams(network)
-except Exception as e:
-    raise ValueError(f"Failed to select network parameters for {network}: {e}")
-
+# Importing necessary modules from python-bitcoinlib
+from bitcoin.core import CMutableTransaction, CMutableTxIn, CMutableTxOut, COutPoint, lx, SelectParams
+from bitcoin.wallet import CBitcoinAddress, P2PKHBitcoinAddress, CBitcoinAddressError
 from pycoin.key.BIP32Node import BIP32Node
 from pycoin.encoding import EncodingError
-from bitcoin.core import CMutableTransaction, CMutableTxIn, CMutableTxOut, COutPoint, lx
-from bitcoin.wallet import CBitcoinAddress, CBase58BitcoinAddress, P2PKHBitcoinAddress, P2SHBitcoinAddress, CBitcoinAddressError
 
 from .services.daemonservice import BitcoinDaemonService
 from .services.blockrservice import BitcoinBlockrService
 
 # Initialize logging
 logging.basicConfig(level=logging.DEBUG)
+
+SERVICES = ['daemon', 'blockr']
+
+# Ensure the correct Bitcoin network parameters are set based on the environment variable
+network = os.getenv('BITCOIN_NETWORK', 'mainnet')
+
+try:
+    SelectParams(network)
+except Exception as e:
+    raise ValueError(f"Failed to select network parameters for {network}: {e}")
+
 
 SERVICES = ['daemon', 'blockr']
 
