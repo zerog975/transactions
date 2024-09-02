@@ -13,12 +13,11 @@ from pycoin.key.BIP32Node import BIP32Node
 from pycoin.encoding import EncodingError
 
 from .services.daemonservice import BitcoinDaemonService
-from .services.blockrservice import BitcoinBlockrService
 
 # Initialize logging
 logging.basicConfig(level=logging.DEBUG)
 
-SERVICES = ['daemon', 'blockr']
+SERVICES = ['daemon']
 
 # Ensure the correct Bitcoin network parameters are set based on the environment variable
 network = os.getenv('BITCOIN_NETWORK', 'mainnet')
@@ -27,9 +26,6 @@ try:
     SelectParams(network)
 except Exception as e:
     raise ValueError(f"Failed to select network parameters for {network}: {e}")
-
-
-SERVICES = ['daemon', 'blockr']
 
 class Transactions(object):
     """
@@ -60,8 +56,6 @@ class Transactions(object):
             raise Exception(f"Service '{service}' not supported")
         if service == 'daemon':
             self._service = BitcoinDaemonService(username, password, host, port, testnet, wallet_filename)
-        elif service == 'blockr':
-            self._service = BitcoinBlockrService(testnet)
 
         self._min_tx_fee = self._service._min_transaction_fee
         self._dust = self._service._min_dust
