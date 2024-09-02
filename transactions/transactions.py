@@ -23,6 +23,13 @@ import os
 #    bitcoin.SelectParams(network_map[network])
 #else:
 #    raise ValueError(f"Invalid BITCOIN_NETWORK value: {network}. Expected one of {list(network_map.keys())}.")
+# Ensure network parameter is set correctly
+network = os.getenv('BITCOIN_NETWORK', 'testnet')
+
+try:
+    bitcoin.SelectParams(network)
+except Exception as e:
+    raise ValueError(f"Failed to select network parameters for {network}: {e}")
 
 from pycoin.key.BIP32Node import BIP32Node
 from pycoin.encoding import EncodingError
