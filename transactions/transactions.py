@@ -7,7 +7,7 @@ import logging
 import os
 
 # Importing necessary modules from python-bitcoinlib
-from bitcoin.core import CMutableTransaction, CMutableTxIn, CMutableTxOut, COutPoint, lx, SelectParams
+from bitcoin.core import CMutableTransaction, CMutableTxIn, CMutableTxOut, COutPoint, lx#, SelectParams
 from bitcoin.wallet import CBitcoinAddress, P2PKHBitcoinAddress, CBitcoinAddressError
 from pycoin.key.BIP32Node import BIP32Node
 from pycoin.encoding import EncodingError
@@ -20,12 +20,15 @@ logging.basicConfig(level=logging.DEBUG)
 SERVICES = ['daemon']
 
 # Ensure the correct Bitcoin network parameters are set based on the environment variable
-network = os.getenv('BITCOIN_NETWORK', 'mainnet')
+#network = os.getenv('BITCOIN_NETWORK', 'mainnet')
 
-try:
-    SelectParams(network)
-except Exception as e:
-    raise ValueError(f"Failed to select network parameters for {network}: {e}")
+#try:
+#    SelectParams(network)
+##except Exception as e:
+ #   raise ValueError(f"Failed to select network parameters for {network}: {e}")
+bitcoin.SelectParams ('testnet')
+
+
 
 class Transactions(object):
     """
