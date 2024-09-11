@@ -32,19 +32,19 @@ class BitcoinDaemonService(BitcoinService):
             return 'http://%s:%s@%s:%s' % (self._username, self._password,
                                            self._host, self._port)
 
-#    def make_request(self, method, params=None):
-#        if params is None:
-#             params = []
-#        data = json.dumps({"jsonrpc": "1.0", "params": params, "id": "", "method": method})
-#        response = self._session.post(
-#            self._url,
-#            data=data,
-#            headers={'Content-type': 'application/json'},
-#            verify=False,
-#            timeout=30,
-#        )
-#        response.raise_for_status()  # Raise an exception if the request was not successful
-#        return response.json()
+    def make_request(self, method, params=None):
+        if params is None:
+             params = []
+        data = json.dumps({"jsonrpc": "1.0", "params": params, "id": "", "method": method})
+        response = self._session.post(
+            self._url,
+            data=data,
+            headers={'Content-type': 'application/json'},
+            verify=False,
+            timeout=30,
+        )
+        response.raise_for_status()  # Raise an exception if the request was not successful
+        return response.json()
 
 ### setup with logging for troubleshooting
 #import logging
