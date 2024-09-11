@@ -8,6 +8,7 @@ from __future__ import absolute_import, division, unicode_literals
 import json
 import requests
 import logging
+import os
 from .service import BitcoinService
 from transactions.utils import bitcoin_to_satoshi
 
@@ -15,33 +16,17 @@ from transactions.utils import bitcoin_to_satoshi
 logging.basicConfig(level=logging.DEBUG)
 
 
-#class BitcoinDaemonService(BitcoinService):
-#    def __init__(self, username, password, host, port, testnet=False, wallet_filename=None):
-#        super(BitcoinDaemonService, self).__init__(testnet=testnet)
-#        self._username = username
-#        self._password = password
-#        self._host = host
-#        self._port = port
-#        self.wallet_filename = wallet_filename
-#        self._session = requests.Session()
-#        self._session.mount('http://', requests.adapters.HTTPAdapter(max_retries=3))
-
-#    @property
-#    def _url(self):
-#        if self.wallet_filename:
-#            return 'http://%s:%s@%s:%s/wallet/%s' % (self._username, self._password,
-#                                                     self._host, self._port, self.wallet_filename)
-#        else:
-#            return 'http://%s:%s@%s:%s' % (self._username, self._password,
-#                                           self._host, self._port)
 class BitcoinDaemonService(BitcoinService):
-    def __init__(self, username, password, host, port, testnet=False, wallet_filename=None):
-        logging.debug(f"Initializing BitcoinDaemonService with wallet_filename={wallet_filename}")
-        self._username = username
-        self._password = password
-        self._host = host
-        self._port = port
-        self.wallet_filename = wallet_filename
+    def __init__(self):
+        # Retrieve the required environment variables for initialization
+        self._username = os.getenv('BITCOIN_RPCUSER')
+        self._password = os.getenv('BITCOIN_RPCPASSWORD')
+        self._host = os.getenv('BITCOIN_HOST')
+        self._port = int(os.getenv('BITCOIN_PORT'))
+        self.wallet_filename = os.getenv('WALLET_FILENAME')
+        
+        logging.debug(f"Initializing BitcoinDaemonService with wallet_filename={self.wallet_filename}")
+        
         self._session = requests.Session()
         self._session.mount('http://', requests.adapters.HTTPAdapter(max_retries=3))
 
@@ -51,28 +36,6 @@ class BitcoinDaemonService(BitcoinService):
             return f'http://{self._username}:{self._password}@{self._host}:{self._port}/wallet/{self.wallet_filename}'
         else:
             return f'http://{self._username}:{self._password}@{self._host}:{self._port}'
-
-
-
-
-
-
-#    def make_request(self, method, params=None):
-#        if params is None:
-#             params = []
-#        data = json.dumps({"jsonrpc": "1.0", "params": params, "id": "", "method": method})
-#        response = self._session.post(
-#            self._url,
-#            data=data,
-#            headers={'Content-type': 'application/json'},
-#            verify=False,
-#            timeout=30,
-#        )
-#        response.raise_for_status()  # Raise an exception if the request was not successful
-#        return response.json()
-
-
-
 
     def make_request(self, method, params=None):
         if params is None:
@@ -110,7 +73,6 @@ class BitcoinDaemonService(BitcoinService):
             # Log the error before raising it
             logging.error(f"Error during RPC request: {e}")
             raise
-
 
     def get_block_raw(self, block_hash):
         return self.make_request('getblock', (block_hash,))
@@ -236,7 +198,7 @@ class BitcoinDaemonService(BitcoinService):
     def _get_value_from_vout(self, txid, vout_n):
         try:
             raw_tx = self.get_raw_transaction(txid)
-            return [vout['value'] for vout in raw_tx['vout'] if vout['n'] == vout_n][0]
+            return [vout['value'] for vout in tx['vout'] if vout['n'] == vout_n][0]
         except Exception as e:
             if e.args and e.args[0] == {'message': 'No information available about transaction', 'code': -5}:
                 return 0
@@ -256,18 +218,3 @@ class BitcoinDaemonService(BitcoinService):
                                   'address': vout['scriptPubKey'].get('addresses', ['NONSTANDARD'])[0]} for vout in tx.get('vout', [])]
                        })
         return result
-
-
-class RegtestDaemonService(BitcoinDaemonService):
-    """
-    Daemon in regtest mode.
-    This works for Bitcoin core 0.10.1 and earlier with `regtest=1` set in bitcoin.conf
-    this will generate a new block every time a transaction is pushed to the network
-    """
-    # Todo: Check bitcoin core version and set the correct method to generate a new block
-
-    def make_request(self, method, params=[]):
-        response = super(RegtestDaemonService, self).make_request(method, params)
-        if method == 'sendrawtransaction':
-            super(RegtestDaemonService, self).make_request("generate", [1])
-        return response
