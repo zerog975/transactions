@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+
 from __future__ import absolute_import, division, unicode_literals
 from builtins import object
 import codecs
@@ -6,7 +7,7 @@ import logging
 import os
 
 # Importing necessary modules from python-bitcoinlib
-from bitcoin.core import CMutableTransaction, CMutableTxIn, CMutableTxOut, COutPoint, lx
+from bitcoin.core import CMutableTransaction, CMutableTxIn, CMutableTxOut, COutPoint, lx#, SelectParams
 from bitcoin.wallet import CBitcoinAddress, P2PKHBitcoinAddress, CBitcoinAddressError
 from pycoin.key.BIP32Node import BIP32Node
 from pycoin.encoding import EncodingError
@@ -17,6 +18,17 @@ from .services.daemonservice import BitcoinDaemonService
 logging.basicConfig(level=logging.DEBUG)
 
 SERVICES = ['daemon']
+
+# Ensure the correct Bitcoin network parameters are set based on the environment variable
+#network = os.getenv('BITCOIN_NETWORK', 'mainnet')
+
+#try:
+#    SelectParams(network)
+##except Exception as e:
+ #   raise ValueError(f"Failed to select network parameters for {network}: {e}")
+#bitcoin.SelectParams ('testnet')
+
+
 
 class Transactions(object):
     """
@@ -80,7 +92,7 @@ class Transactions(object):
             return self._service.get_transaction(hash, raw=raw)
 
     def import_address(self, address, account="", rescan=False):
-        if isinstance(self._service, BitcoinDaemonService):
+        if self._service.name.startswith('BitcoinDaemonService'):
             self._service.import_address(address, account, rescan=rescan)
 
     def validate_address(self, address):
