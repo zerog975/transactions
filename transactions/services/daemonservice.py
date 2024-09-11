@@ -42,16 +42,20 @@ class BitcoinDaemonService(BitcoinService):
         self._host = host
         self._port = port
         self.wallet_filename = wallet_filename
+
+        logging.debug(f"Initializing BitcoinDaemonService with wallet_filename={self.wallet_filename}")
+
         self._session = requests.Session()
         self._session.mount('http://', requests.adapters.HTTPAdapter(max_retries=3))
 
     @property
     def _url(self):
         if self.wallet_filename:
-            # Append the wallet filename to the URL
-            return f'http://{self._username}:{self._password}@{self._host}:{self._port}/wallet/{self.wallet_filename}'
+            return 'http://%s:%s@%s:%s/wallet/%s' % (self._username, self._password,
+                                                     self._host, self._port, self.wallet_filename)
         else:
-            return f'http://{self._username}:{self._password}@{self._host}:{self._port}'
+            return 'http://%s:%s@%s:%s' % (self._username, self._password,
+                                           self._host, self._port)
 
 
 
