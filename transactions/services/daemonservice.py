@@ -36,26 +36,22 @@ logging.basicConfig(level=logging.DEBUG)
 #                                           self._host, self._port)
 class BitcoinDaemonService(BitcoinService):
     def __init__(self, username, password, host, port, testnet=False, wallet_filename=None):
-        super(BitcoinDaemonService, self).__init__(testnet=testnet)
+        logging.debug(f"Initializing BitcoinDaemonService with wallet_filename={wallet_filename}")
         self._username = username
         self._password = password
         self._host = host
         self._port = port
         self.wallet_filename = wallet_filename
-
-        logging.debug(f"Initializing BitcoinDaemonService with wallet_filename={self.wallet_filename}")
-
         self._session = requests.Session()
         self._session.mount('http://', requests.adapters.HTTPAdapter(max_retries=3))
 
     @property
     def _url(self):
         if self.wallet_filename:
-            return 'http://%s:%s@%s:%s/wallet/%s' % (self._username, self._password,
-                                                     self._host, self._port, self.wallet_filename)
+            return f'http://{self._username}:{self._password}@{self._host}:{self._port}/wallet/{self.wallet_filename}'
         else:
-            return 'http://%s:%s@%s:%s' % (self._username, self._password,
-                                           self._host, self._port)
+            return f'http://{self._username}:{self._password}@{self._host}:{self._port}'
+
 
 
 
