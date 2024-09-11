@@ -32,7 +32,9 @@ class BitcoinDaemonService(BitcoinService):
             return 'http://%s:%s@%s:%s' % (self._username, self._password,
                                            self._host, self._port)
 
-#    def make_request(self, method, params=[]):
+#    def make_request(self, method, params=None):
+#        if params is None:
+#             params = []
 #        data = json.dumps({"jsonrpc": "1.0", "params": params, "id": "", "method": method})
 #        response = self._session.post(
 #            self._url,
@@ -45,45 +47,47 @@ class BitcoinDaemonService(BitcoinService):
 #        return response.json()
 
 ### setup with logging for troubleshooting
-import logging
-import json
+#import logging
+#import json
 
 # Enable logging
-logging.basicConfig(level=logging.DEBUG)
+#logging.basicConfig(level=logging.DEBUG)
 
-def make_request(self, method, params=[]):
-    # Log the RPC request details
-    logging.debug(f"Making RPC request: {method} with params: {params}")
+#    def make_request(self, method, params=None):
+#        if params is None:
+#             params = []
+#    # Log the RPC request details
+#    logging.debug(f"Making RPC request: {method} with params: {params}")
 
     # Prepare the data for the request
-    data = json.dumps({"jsonrpc": "1.0", "params": params, "id": "", "method": method})
+#    data = json.dumps({"jsonrpc": "1.0", "params": params, "id": "", "method": method})
 
     # Log the data being sent
-    logging.debug(f"Request data: {data}")
+#    logging.debug(f"Request data: {data}")
 
-    try:
+#    try:
         # Send the request
-        response = self._session.post(
-            self._url,
-            data=data,
-            headers={'Content-type': 'application/json'},
-            verify=False,
-            timeout=30,
-        )
+#        response = self._session.post(
+#            self._url,
+#            data=data,
+#            headers={'Content-type': 'application/json'},
+#            verify=False,
+#            timeout=30,
+#        )
 
         # Log the response status and content
-        logging.debug(f"Response status code: {response.status_code}")
-        logging.debug(f"Response content: {response.text}")
+#        logging.debug(f"Response status code: {response.status_code}")
+#        logging.debug(f"Response content: {response.text}")
 
         # Raise an exception if the request was not successful
-        response.raise_for_status()
+#        response.raise_for_status()
         
-        return response.json()
+#        return response.json()
 
-    except Exception as e:
+#    except Exception as e:
         # Log the error before raising it
-        logging.error(f"Error during RPC request: {e}")
-        raise
+#        logging.error(f"Error during RPC request: {e}")
+#        raise
 
 
     def get_block_raw(self, block_hash):
