@@ -7,14 +7,13 @@ from __future__ import absolute_import, division, unicode_literals
 
 import json
 import requests
-
+import logging
 from .service import BitcoinService
 from transactions.utils import bitcoin_to_satoshi
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
-import logging
-import json
+
 
 class BitcoinDaemonService(BitcoinService):
     def __init__(self, username, password, host, port, testnet=False, wallet_filename=None):
