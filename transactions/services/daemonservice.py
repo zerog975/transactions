@@ -47,8 +47,8 @@ class BitcoinDaemonService(BitcoinService):
 
     @property
     def _url(self):
-        # Check if the wallet filename is provided and construct the URL accordingly
         if self.wallet_filename:
+            # Append the wallet filename to the URL
             return f'http://{self._username}:{self._password}@{self._host}:{self._port}/wallet/{self.wallet_filename}'
         else:
             return f'http://{self._username}:{self._password}@{self._host}:{self._port}'
