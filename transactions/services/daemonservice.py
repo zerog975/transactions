@@ -15,6 +15,25 @@ from transactions.utils import bitcoin_to_satoshi
 logging.basicConfig(level=logging.DEBUG)
 
 
+#class BitcoinDaemonService(BitcoinService):
+#    def __init__(self, username, password, host, port, testnet=False, wallet_filename=None):
+#        super(BitcoinDaemonService, self).__init__(testnet=testnet)
+#        self._username = username
+#        self._password = password
+#        self._host = host
+#        self._port = port
+#        self.wallet_filename = wallet_filename
+#        self._session = requests.Session()
+#        self._session.mount('http://', requests.adapters.HTTPAdapter(max_retries=3))
+
+#    @property
+#    def _url(self):
+#        if self.wallet_filename:
+#            return 'http://%s:%s@%s:%s/wallet/%s' % (self._username, self._password,
+#                                                     self._host, self._port, self.wallet_filename)
+#        else:
+#            return 'http://%s:%s@%s:%s' % (self._username, self._password,
+#                                           self._host, self._port)
 class BitcoinDaemonService(BitcoinService):
     def __init__(self, username, password, host, port, testnet=False, wallet_filename=None):
         super(BitcoinDaemonService, self).__init__(testnet=testnet)
@@ -28,12 +47,13 @@ class BitcoinDaemonService(BitcoinService):
 
     @property
     def _url(self):
+        # Check if the wallet filename is provided and construct the URL accordingly
         if self.wallet_filename:
-            return 'http://%s:%s@%s:%s/wallet/%s' % (self._username, self._password,
-                                                     self._host, self._port, self.wallet_filename)
+            return f'http://{self._username}:{self._password}@{self._host}:{self._port}/wallet/{self.wallet_filename}'
         else:
-            return 'http://%s:%s@%s:%s' % (self._username, self._password,
-                                           self._host, self._port)
+            return f'http://{self._username}:{self._password}@{self._host}:{self._port}'
+
+
 
 #    def make_request(self, method, params=None):
 #        if params is None:
@@ -56,11 +76,14 @@ class BitcoinDaemonService(BitcoinService):
         if params is None:
             params = []
         
+        # Log the RPC request details
+        logging.debug(f"Making RPC request: {method} with params: {params}")
+        
         # Prepare the data for the request
         data = json.dumps({"jsonrpc": "1.0", "params": params, "id": "", "method": method})
 
-        # Log the RPC request details
-        logging.debug(f"Making RPC request: {method} with params: {params}")
+        # Log the request data being sent
+        logging.debug(f"Request data: {data}")
 
         try:
             # Send the request
@@ -85,51 +108,6 @@ class BitcoinDaemonService(BitcoinService):
             # Log the error before raising it
             logging.error(f"Error during RPC request: {e}")
             raise
-
-
-
-### setup with logging for troubleshooting
-#import logging
-#import json
-
-# Enable logging
-#logging.basicConfig(level=logging.DEBUG)
-
-#    def make_request(self, method, params=None):
-#        if params is None:
-#             params = []
-#    # Log the RPC request details
-#    logging.debug(f"Making RPC request: {method} with params: {params}")
-
-    # Prepare the data for the request
-#    data = json.dumps({"jsonrpc": "1.0", "params": params, "id": "", "method": method})
-
-    # Log the data being sent
-#    logging.debug(f"Request data: {data}")
-
-#    try:
-        # Send the request
-#        response = self._session.post(
-#            self._url,
-#            data=data,
-#            headers={'Content-type': 'application/json'},
-#            verify=False,
-#            timeout=30,
-#        )
-
-        # Log the response status and content
-#        logging.debug(f"Response status code: {response.status_code}")
-#        logging.debug(f"Response content: {response.text}")
-
-        # Raise an exception if the request was not successful
-#        response.raise_for_status()
-        
-#        return response.json()
-
-#    except Exception as e:
-        # Log the error before raising it
-#        logging.error(f"Error during RPC request: {e}")
-#        raise
 
 
     def get_block_raw(self, block_hash):
