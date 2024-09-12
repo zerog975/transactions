@@ -41,6 +41,9 @@ class BitcoinDaemonService:
         # Retrieve the network (mainnet or testnet) from environment variables or arguments
         self.network = 'testnet' if testnet else 'mainnet'
         
+        # Define a default minimum transaction fee (in satoshi) or retrieve it dynamically
+        self._min_transaction_fee = 10000  # This is just a placeholder value, adjust as needed
+        
         logging.debug(f"Initializing BitcoinDaemonService with wallet_filename={self.wallet_filename} on network={self.network}")
         
         # Set up session for making requests with retry support
