@@ -16,65 +16,88 @@ from transactions.utils import bitcoin_to_satoshi
 logging.basicConfig(level=logging.DEBUG)
 
 
-class BitcoinDaemonService(BitcoinService):
-    def __init__(self):
-        # Retrieve the required environment variables for initialization
-        self._username = os.getenv('BITCOIN_RPCUSER')
-        self._password = os.getenv('BITCOIN_RPCPASSWORD')
-        self._host = os.getenv('BITCOIN_HOST')
-        self._port = int(os.getenv('BITCOIN_PORT'))
-        self.wallet_filename = os.getenv('WALLET_FILENAME')
+class BitcoinDaemonService:
+    def __init__(self, username=None, password=None, host=None, port=None, testnet=False, wallet_filename=None):
+        """
+        Initialize the BitcoinDaemonService with the given parameters.
+        If any parameters are not provided, they are fetched from environment variables.
         
-        # Retrieve the BITCOIN_NETWORK environment variable (mainnet or testnet)
-        self.network = os.getenv('BITCOIN_NETWORK', 'mainnet')
+        Args:
+            username (str): Bitcoin RPC username.
+            password (str): Bitcoin RPC password.
+            host (str): Bitcoin node host.
+            port (int): Bitcoin RPC port.
+            testnet (bool): Whether to use the testnet or mainnet.
+            wallet_filename (str): Bitcoin wallet filename.
+        """
+        
+        # If arguments are provided, they take priority; otherwise, fall back to environment variables
+        self._username = username or os.getenv('BITCOIN_RPCUSER')
+        self._password = password or os.getenv('BITCOIN_RPCPASSWORD')
+        self._host = host or os.getenv('BITCOIN_HOST')
+        self._port = port or int(os.getenv('BITCOIN_PORT'))
+        self.wallet_filename = wallet_filename or os.getenv('WALLET_FILENAME')
+
+        # Retrieve the network (mainnet or testnet) from environment variables or arguments
+        self.network = 'testnet' if testnet else 'mainnet'
         
         logging.debug(f"Initializing BitcoinDaemonService with wallet_filename={self.wallet_filename} on network={self.network}")
         
+        # Set up session for making requests with retry support
         self._session = requests.Session()
         self._session.mount('http://', requests.adapters.HTTPAdapter(max_retries=3))
 
     @property
     def _url(self):
-        # Construct the URL depending on the selected network
+        """
+        Construct the Bitcoin RPC URL.
+        """
+        # Use the wallet_filename to create the URL if provided, otherwise use the base URL
         if self.wallet_filename:
             return f'http://{self._username}:{self._password}@{self._host}:{self._port}/wallet/{self.wallet_filename}'
         else:
             return f'http://{self._username}:{self._password}@{self._host}:{self._port}'
 
     def make_request(self, method, params=None):
+        """
+        Make a request to the Bitcoin daemon.
+        
+        Args:
+            method (str): The RPC method name.
+            params (list): The parameters to pass to the method.
+        
+        Returns:
+            dict: The parsed JSON response from the daemon.
+        """
         if params is None:
             params = []
         
-        # Log the RPC request details
-        logging.debug(f"Making RPC request: {method} with params: {params}")
-        
         # Prepare the data for the request
-        data = json.dumps({"jsonrpc": "1.0", "params": params, "id": "", "method": method})
+        data = {
+            "jsonrpc": "1.0",
+            "method": method,
+            "params": params,
+            "id": ""
+        }
 
-        # Log the request data being sent
-        logging.debug(f"Request data: {data}")
-
+        logging.debug(f"Making RPC request: {method} with params: {params}")
         try:
-            # Send the request
             response = self._session.post(
                 self._url,
-                data=data,
+                json=data,
                 headers={'Content-type': 'application/json'},
-                verify=False,
-                timeout=30,
+                timeout=30
             )
-
-            # Log the response status and content
+            
             logging.debug(f"Response status code: {response.status_code}")
             logging.debug(f"Response content: {response.text}")
-
-            # Raise an exception if the request was not successful
+            
+            # Raise an error if the response is not successful
             response.raise_for_status()
             
             return response.json()
 
-        except Exception as e:
-            # Log the error before raising it
+        except requests.exceptions.RequestException as e:
             logging.error(f"Error during RPC request: {e}")
             raise
 
