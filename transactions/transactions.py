@@ -30,7 +30,7 @@ class Transactions(object):
     # dust
     _dust = 600
 
-    def __init__(self, service='daemon', testnet=False, username='', password='', host='', port='', wallet_filename=''):
+    def __init__(self, service='daemon', testnet=True, username='', password='', host='', port='', wallet_filename=''):
         """
         Args:
             service (str): currently supports _blockr_ for blockr.io and and _daemon_ for bitcoin daemon. Defaults to _blockr_

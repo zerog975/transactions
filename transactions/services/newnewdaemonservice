@@ -8,46 +8,49 @@ from __future__ import absolute_import, division, unicode_literals
 import json
 import requests
 import logging
-import os
 from .service import BitcoinService
 from transactions.utils import bitcoin_to_satoshi
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
 
-
 class BitcoinDaemonService(BitcoinService):
-    def __init__(self):
-        # Retrieve the required environment variables for initialization
-        self._username = os.getenv('BITCOIN_RPCUSER')
-        self._password = os.getenv('BITCOIN_RPCPASSWORD')
-        self._host = os.getenv('BITCOIN_HOST')
-        self._port = int(os.getenv('BITCOIN_PORT'))
-        self.wallet_filename = os.getenv('WALLET_FILENAME')
-        
-        # Retrieve the BITCOIN_NETWORK environment variable (mainnet or testnet)
-        self.network = os.getenv('BITCOIN_NETWORK', 'mainnet')
-        
-        logging.debug(f"Initializing BitcoinDaemonService with wallet_filename={self.wallet_filename} on network={self.network}")
-        
+    def __init__(self, username, password, host, port, testnet=True, wallet_filename=None):
+        """
+        Initializes the BitcoinDaemonService. This will handle RPC requests for a specific wallet if provided.
+        """
+        logging.debug(f"Initializing BitcoinDaemonService with wallet_filename={wallet_filename}")
+        self._username = username
+        self._password = password
+        self._host = host
+        self._port = port
+        self.wallet_filename = wallet_filename
         self._session = requests.Session()
         self._session.mount('http://', requests.adapters.HTTPAdapter(max_retries=3))
 
     @property
     def _url(self):
-        # Construct the URL depending on the selected network
+        """
+        Returns the base URL for the Bitcoin RPC including the wallet path if specified.
+        """
         if self.wallet_filename:
             return f'http://{self._username}:{self._password}@{self._host}:{self._port}/wallet/{self.wallet_filename}'
         else:
             return f'http://{self._username}:{self._password}@{self._host}:{self._port}'
 
     def make_request(self, method, params=None):
+        """
+        Makes an RPC request to the Bitcoin daemon.
+        :param method: The RPC method name (e.g., "getblock", "getbalance").
+        :param params: A list of parameters for the method (e.g., ["block_hash"]).
+        :return: The response from the RPC call as a JSON object.
+        """
         if params is None:
             params = []
-        
+
         # Log the RPC request details
         logging.debug(f"Making RPC request: {method} with params: {params}")
-        
+
         # Prepare the data for the request
         data = json.dumps({"jsonrpc": "1.0", "params": params, "id": "", "method": method})
 
@@ -70,7 +73,7 @@ class BitcoinDaemonService(BitcoinService):
 
             # Raise an exception if the request was not successful
             response.raise_for_status()
-            
+
             return response.json()
 
         except Exception as e:
@@ -79,34 +82,19 @@ class BitcoinDaemonService(BitcoinService):
             raise
 
     def get_block_raw(self, block_hash):
-        return self.make_request('getblock', (block_hash,))
+        return self.make_request('getblock', [block_hash])
 
     def get_block_info(self, block_hash):
-        return self.make_request('getblockheader', (block_hash,))
+        return self.make_request('getblockheader', [block_hash])
 
     def getinfo(self):
         return self.make_request('getinfo')
 
     def generate(self, numblocks):
         """
-        As per bitcoin-cli docs:
-
-        Mine blocks immediately (before the RPC call returns)
-
-        .. note:: this function can only be used on the regtest network
-
-        Args:
-            numblocks (int): How many blocks are generated immediately.
-
-        Returns:
-            blockhashes (List[str]): hashes of blocks generated
-
-        Examples:
-
-            Generate 11 blocks
-                >>> generate(11)
+        Generates blocks immediately (for regtest mode).
         """
-        return self.make_request('generate', (numblocks,))
+        return self.make_request('generate', [numblocks])
 
     def getbalance(self):
         return self.make_request('getbalance')
@@ -115,36 +103,37 @@ class BitcoinDaemonService(BitcoinService):
         return self.make_request('getnewaddress')
 
     def send_to_address(self, address, amount):
-        return self.make_request('sendtoaddress', params=(address, amount))
+        return self.make_request('sendtoaddress', [address, amount])
 
     def push_tx(self, tx):
         """
-        :param tx: signed tx hash
-        :return: if successful, returns info on the transaction; otherwise, raises an exception
+        Pushes a raw signed transaction to the network.
+        :param tx: Signed transaction hash.
+        :return: Transaction info or raises an exception.
         """
         response = self.make_request("sendrawtransaction", [tx, True])
         error = response.get('error')
-        if error is not None:
+        if error:
             raise Exception(error)
-
         return response
 
     def import_address(self, address, account="*", rescan=False):
         """
-        :param address: address to import
-        :param account: account name to use
-        :param rescan: whether to rescan the blockchain for the address's transactions
+        Imports an address to the wallet.
+        :param address: Address to import.
+        :param account: Account name to use.
+        :param rescan: Rescan the blockchain for the address's transactions.
         """
         response = self.make_request("importaddress", [address, account, rescan])
         error = response.get('error')
-        if error is not None:
+        if error:
             raise Exception(error)
         return response
 
     def list_transactions(self, address, account="*", max_transactions=200):
         response = self.make_request("listtransactions", [account, max_transactions, 0, True])
         error = response.get('error')
-        if error is not None:
+        if error:
             raise Exception(error)
 
         results = response.get('result', [])
@@ -161,7 +150,7 @@ class BitcoinDaemonService(BitcoinService):
     def list_unspents(self, address, min_confirmations):
         response = self.make_request('listunspent', [min_confirmations, 9999999, [address]])
         error = response.get('error')
-        if error is not None:
+        if error:
             raise Exception(error)
 
         results = response.get('result', [])
@@ -202,7 +191,7 @@ class BitcoinDaemonService(BitcoinService):
     def _get_value_from_vout(self, txid, vout_n):
         try:
             raw_tx = self.get_raw_transaction(txid)
-            return [vout['value'] for vout in tx['vout'] if vout['n'] == vout_n][0]
+            return [vout['value'] for vout in raw_tx['vout'] if vout['n'] == vout_n][0]
         except Exception as e:
             if e.args and e.args[0] == {'message': 'No information available about transaction', 'code': -5}:
                 return 0
@@ -222,3 +211,15 @@ class BitcoinDaemonService(BitcoinService):
                                   'address': vout['scriptPubKey'].get('addresses', ['NONSTANDARD'])[0]} for vout in tx.get('vout', [])]
                        })
         return result
+
+
+class RegtestDaemonService(BitcoinDaemonService):
+    """
+    Daemon in regtest mode.
+    This works for Bitcoin core 0.10.1 and earlier with `regtest=1` set in bitcoin.conf.
+    """
+    def make_request(self, method, params=[]):
+        response = super(RegtestDaemonService, self).make_request(method, params)
+        if method == 'sendrawtransaction':
+            super(RegtestDaemonService, self).make_request("generate", [1])
+        return response
