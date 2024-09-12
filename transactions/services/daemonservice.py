@@ -42,7 +42,10 @@ class BitcoinDaemonService:
         self.network = 'testnet' if testnet else 'mainnet'
         
         # Define a default minimum transaction fee (in satoshi) or retrieve it dynamically
+        ###
+        ###   Need to update
         self._min_transaction_fee = 10000  # This is just a placeholder value, adjust as needed
+        self._min_dust = 600  # Set this to your desired dust limit (in satoshis)
         
         logging.debug(f"Initializing BitcoinDaemonService with wallet_filename={self.wallet_filename} on network={self.network}")
         
