@@ -14,6 +14,7 @@ from pycoin.encoding import EncodingError
 from bit.transaction import address_to_scriptpubkey
 from bit.transaction import sign_tx
 from bit import Key
+
 # Removed import of InvalidAddress
 # from bit.exceptions import InvalidAddress
 
@@ -170,41 +171,46 @@ class Transactions(object):
 
 
 
-    def sign_transaction(self, tx, master_password, path='', unspents=None):
+
+
+    def sign_transaction(self, unsigned_tx, master_password, unspents, path=''):
         """
+        Signs a transaction with the derived private key from the provided BIP32 master password.
+
         Args:
-            tx: the transaction object to sign (in hex format)
-            master_password: passphrase or private key for BIP32 wallets. This should be a passphrase (like 'endthefed').
-            path (Optional[str]): optional path to the leaf address of the BIP32 wallet.
-                This allows us to retrieve the private key for the leaf address if one was used to construct the transaction.
-            unspents (Optional[list]): List of unspent transaction outputs (UTXOs) required to sign the transaction.
+            unsigned_tx (CTransaction): The unsigned transaction object (from the bit library).
+            master_password (str): The BIP32 master password (or seed).
+            unspents (list): List of unspent transaction outputs (UTXOs) required to sign the transaction.
+            path (str): Path to the leaf address in the BIP32 wallet. (Optional)
 
         Returns:
-            signed transaction in hex format
+            str: Signed transaction in hex format.
         """
-        netcode = 'XTN' if self.testnet else 'BTC'
-
-        # Ensure master_password is a string
+        # Ensure master_password is a string and encode it as required
         if isinstance(master_password, bytes):
             master_password = master_password.decode('utf-8')
 
+        # Determine the correct Bitcoin network (testnet or mainnet)
+        netcode = 'XTN' if self.testnet else 'BTC'
+
         try:
-            # Derive the private key from the passphrase using pycoin (BIP32)
+            # Derive the master node from the BIP32 master password (seed)
             bip32_node = BIP32Node.from_master_secret(master_password.encode('utf-8'), netcode=netcode)
 
-            # If a path is provided, derive the leaf key, otherwise use the master key
+            # If a path is provided, derive the subkey for that specific path, otherwise use the master key
             private_key_wif = bip32_node.subkey_for_path(path).wif() if path else bip32_node.wif()
 
             # Create a Key object from the derived private key (WIF format)
-            private_key = Key(private_key_wif)
+            private_key = self._get_private_key(private_key_wif)
 
-            # Sign the transaction using the private key and unspents
-            signed_tx = sign_tx(tx, private_key, unspents=unspents)
+            # Sign the transaction using the derived private key and unspents (UTXOs)
+            signed_tx = sign_tx(unsigned_tx, private_key, unspents=unspents)
+
             return signed_tx
 
         except Exception as e:
-            # Handle possible errors (e.g., invalid key format or transaction errors)
             raise ValueError(f"Failed to sign transaction: {e}")
+
 
 
 
