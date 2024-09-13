@@ -181,11 +181,16 @@ class Transactions(object):
         """
         netcode = 'XTN' if self.testnet else 'BTC'
 
+        # Ensure master_password is a string
+        if isinstance(master_password, bytes):
+            master_password = master_password.decode('utf-8')
+
         try:
             BIP32Node.from_text(master_password)
             return bitcoin.signall(tx, master_password)
         except (AttributeError, EncodingError):
-            return bitcoin.signall(tx, BIP32Node.from_master_secret(master_password, netcode=netcode).subkey_for_path(path).wif())
+            return bitcoin.signall(tx, BIP32Node.from_master_secret(master_password.encode('utf-8'), netcode=netcode).subkey_for_path(path).wif())
+
 
     def _select_inputs(self, address, amount, n_outputs=2, min_confirmations=6):
         """
