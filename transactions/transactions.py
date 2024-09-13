@@ -1,16 +1,18 @@
+# -*- coding: utf-8 -*-
 from __future__ import absolute_import, division, unicode_literals
 from builtins import object
 import codecs
 import logging
 import os
 
-# Importing necessary modules
-from bit import Key, PrivateKeyTestnet, PrivateKey
-from bit.network import NetworkAPI
-from bitcoin.core import CMutableTransaction, CMutableTxIn, CMutableTxOut, COutPoint, lx
-
+# Importing necessary modules from python-bitcoinlib
+from bitcoin.core import CMutableTransaction, CMutableTxIn, CMutableTxOut, COutPoint, lx, CScript
+from bitcoin.wallet import CBitcoinAddress, CBitcoinAddressError
 from pycoin.key.BIP32Node import BIP32Node
 from pycoin.encoding import EncodingError
+
+from bit.format import address_to_scriptpubkey
+from bit.exceptions import InvalidAddress
 
 from .services.daemonservice import BitcoinDaemonService
 
@@ -35,7 +37,7 @@ class Transactions(object):
         """
         Args:
             service (str): currently supports _blockr_ for blockr.io and and _daemon_ for bitcoin daemon. Defaults to _blockr_
-            testnet (bool): use True if you want to use testnet. Defaults to False
+            testnet (bool): use True if you want to use tesnet. Defaults to False
             username (str): username to connect to the bitcoin daemon
             password (str): password to connect to the bitcoin daemon
             host (str): host of the bitcoin daemon
@@ -92,13 +94,12 @@ class Transactions(object):
             address (str): Bitcoin address to validate.
         
         Raises:
-            ValueError: If the address is invalid.
+            CBitcoinAddressError: If the address is invalid.
         """
         try:
-            # Use bit library to check if the address is valid
-            Key(address)
+            CBitcoinAddress(address)
             logging.debug(f"Validated address: {address}")
-        except ValueError as e:
+        except CBitcoinAddressError as e:
             logging.error(f"Invalid address {address}: {e}")
             raise e
 
@@ -155,10 +156,10 @@ class Transactions(object):
                 txouts.append(CMutableTxOut(output['value'], output['script']))
             else:
                 try:
-                    # Use bit library to validate and convert address
-                    addr = Key(output['address']) if self.testnet else PrivateKey(output['address'])
-                    txouts.append(CMutableTxOut(output['value'], addr.scriptPubKey()))
-                except ValueError as e:
+                    script_pubkey_hex = address_to_scriptpubkey(output['address'])
+                    script_pubkey = CScript(bytes.fromhex(script_pubkey_hex))
+                    txouts.append(CMutableTxOut(output['value'], script_pubkey))
+                except InvalidAddress as e:
                     raise ValueError(f"Invalid Bitcoin address: {output['address']}") from e
 
         return CMutableTransaction(txins, txouts)
@@ -203,7 +204,7 @@ class Transactions(object):
         if not unspents:
             raise Exception("No spendable outputs found")
 
-        #unspents are sorted, with the smallest amounts first
+        # unspents are sorted, with the smallest amounts first
         unspents = sorted(unspents, key=lambda d: d['amount'])
         balance, inputs = 0, []
         fee = self._service._min_transaction_fee
