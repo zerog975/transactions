@@ -12,6 +12,8 @@ from pycoin.key.BIP32Node import BIP32Node
 from pycoin.encoding import EncodingError
 
 from bit.transaction import address_to_scriptpubkey
+from bit.transaction import sign_tx
+from bit import Key
 # Removed import of InvalidAddress
 # from bit.exceptions import InvalidAddress
 
@@ -164,20 +166,18 @@ class Transactions(object):
         return CMutableTransaction(txins, txouts)
 
 
+
+
     def sign_transaction(self, tx, master_password, path=''):
         """
         Args:
-            tx: hex transaction to sign
-            master_password: master password for BIP32 wallets. Can be either a
-                master_secret or a wif
-            path (Optional[str]): optional path to the leaf address of the
-                BIP32 wallet. This allows us to retrieve private key for the
-                leaf address if one was used to construct the transaction.
-        Returns:
-            signed transaction
+            tx: the transaction object to sign (in hex format)
+            master_password: master password or private key for BIP32 wallets. This should be the private key (WIF format).
+            path (Optional[str]): optional path to the leaf address of the BIP32 wallet. 
+                This allows us to retrieve the private key for the leaf address if one was used to construct the transaction.
 
-        .. note:: Only BIP32 hierarchical deterministic wallets are currently
-            supported.
+        Returns:
+            signed transaction in hex format
         """
         netcode = 'XTN' if self.testnet else 'BTC'
 
@@ -186,12 +186,15 @@ class Transactions(object):
             master_password = master_password.decode('utf-8')
 
         try:
-            BIP32Node.from_text(master_password)
-            return bitcoin.signall(tx, master_password)
-        except (AttributeError, EncodingError):
-            return bitcoin.signall(tx, BIP32Node.from_master_secret(master_password.encode('utf-8'), netcode=netcode).subkey_for_path(path).wif())
-
-
+            # Create a Key object from the private key (master_password)
+            private_key = Key(master_password)
+        
+            # If the transaction is unsigned, use the private key to sign it
+            signed_tx = sign_tx(tx, private_key)
+            return signed_tx
+        except Exception as e:
+            # Handle possible errors (e.g., invalid key format or transaction errors)
+            raise ValueError(f"Failed to sign transaction: {e}")
     def _select_inputs(self, address, amount, n_outputs=2, min_confirmations=6):
         """
         Selects the inputs to fulfill the amount
