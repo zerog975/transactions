@@ -11,7 +11,7 @@ from bitcoin.wallet import CBitcoinAddress, CBitcoinAddressError
 from pycoin.key.BIP32Node import BIP32Node
 from pycoin.encoding import EncodingError
 
-from bit.format import address_to_scriptpubkey
+from bit.transaction import address_to_scriptpubkey
 from bit.exceptions import InvalidAddress
 
 from .services.daemonservice import BitcoinDaemonService
