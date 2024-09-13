@@ -12,7 +12,8 @@ from pycoin.key.BIP32Node import BIP32Node
 from pycoin.encoding import EncodingError
 
 from bit.transaction import address_to_scriptpubkey
-from bit.exceptions import InvalidAddress
+# Removed import of InvalidAddress
+# from bit.exceptions import InvalidAddress
 
 from .services.daemonservice import BitcoinDaemonService
 
@@ -144,7 +145,6 @@ class Transactions(object):
                 [{'txid': '...', 'vout': 0, 'amount': 10000}, ...]
             outputs (list): outputs in the form of
                 [{'address': '...', 'value': 5000}, {'script': CScript([...]), 'value': 0}, ...]
-
         Returns:
             CMutableTransaction: unsigned transaction object
         """
@@ -159,7 +159,7 @@ class Transactions(object):
                     script_pubkey_hex = address_to_scriptpubkey(output['address'])
                     script_pubkey = CScript(bytes.fromhex(script_pubkey_hex))
                     txouts.append(CMutableTxOut(output['value'], script_pubkey))
-                except InvalidAddress as e:
+                except ValueError as e:
                     raise ValueError(f"Invalid Bitcoin address: {output['address']}") from e
 
         return CMutableTransaction(txins, txouts)
