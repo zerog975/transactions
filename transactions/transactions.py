@@ -149,20 +149,20 @@ class Transactions(object):
             CMutableTransaction: unsigned transaction object
         """
         txins = [CMutableTxIn(COutPoint(lx(input['txid']), input['vout'])) for input in inputs]
-        
+    
         txouts = []
         for output in outputs:
             if 'script' in output:
                 txouts.append(CMutableTxOut(output['value'], output['script']))
             else:
                 try:
-                    script_pubkey_hex = address_to_scriptpubkey(output['address'])
-                    script_pubkey = CScript(bytes.fromhex(script_pubkey_hex))
+                    script_pubkey = CScript(address_to_scriptpubkey(output['address']))
                     txouts.append(CMutableTxOut(output['value'], script_pubkey))
                 except ValueError as e:
                     raise ValueError(f"Invalid Bitcoin address: {output['address']}") from e
 
         return CMutableTransaction(txins, txouts)
+
 
     def sign_transaction(self, tx, master_password, path=''):
         """
