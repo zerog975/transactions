@@ -1,13 +1,14 @@
-# -*- coding: utf-8 -*-
 from __future__ import absolute_import, division, unicode_literals
 from builtins import object
 import codecs
 import logging
 import os
 
-# Importing necessary modules from python-bitcoinlib
+# Importing necessary modules
+from bit import Key, PrivateKeyTestnet, PrivateKey
+from bit.network import NetworkAPI
 from bitcoin.core import CMutableTransaction, CMutableTxIn, CMutableTxOut, COutPoint, lx
-from bitcoin.wallet import CBitcoinAddress, P2PKHBitcoinAddress, CBitcoinAddressError
+
 from pycoin.key.BIP32Node import BIP32Node
 from pycoin.encoding import EncodingError
 
@@ -34,7 +35,7 @@ class Transactions(object):
         """
         Args:
             service (str): currently supports _blockr_ for blockr.io and and _daemon_ for bitcoin daemon. Defaults to _blockr_
-            testnet (bool): use True if you want to use tesnet. Defaults to False
+            testnet (bool): use True if you want to use testnet. Defaults to False
             username (str): username to connect to the bitcoin daemon
             password (str): password to connect to the bitcoin daemon
             host (str): host of the bitcoin daemon
@@ -91,12 +92,13 @@ class Transactions(object):
             address (str): Bitcoin address to validate.
         
         Raises:
-            CBitcoinAddressError: If the address is invalid.
+            ValueError: If the address is invalid.
         """
         try:
-            CBitcoinAddress(address)
+            # Use bit library to check if the address is valid
+            Key(address)
             logging.debug(f"Validated address: {address}")
-        except CBitcoinAddressError as e:
+        except ValueError as e:
             logging.error(f"Invalid address {address}: {e}")
             raise e
 
@@ -153,12 +155,10 @@ class Transactions(object):
                 txouts.append(CMutableTxOut(output['value'], output['script']))
             else:
                 try:
-                    if self.testnet:
-                        addr = P2PKHBitcoinAddress.from_bytes(output['address'].encode('utf-8'), 111)  # Testnet prefix
-                    else:
-                        addr = P2PKHBitcoinAddress.from_string(output['address'])
-                    txouts.append(CMutableTxOut(output['value'], addr.to_scriptPubKey()))
-                except CBitcoinAddressError as e:
+                    # Use bit library to validate and convert address
+                    addr = Key(output['address']) if self.testnet else PrivateKey(output['address'])
+                    txouts.append(CMutableTxOut(output['value'], addr.scriptPubKey()))
+                except ValueError as e:
                     raise ValueError(f"Invalid Bitcoin address: {output['address']}") from e
 
         return CMutableTransaction(txins, txouts)
