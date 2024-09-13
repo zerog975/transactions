@@ -168,11 +168,13 @@ class Transactions(object):
 
 
 
+
+
     def sign_transaction(self, tx, master_password, path=''):
         """
         Args:
             tx: the transaction object to sign (in hex format)
-            master_password: master password or private key for BIP32 wallets. This should be the private key (WIF format).
+            master_password: passphrase or private key for BIP32 wallets. This should be a passphrase (like 'endthefed').
             path (Optional[str]): optional path to the leaf address of the BIP32 wallet. 
                 This allows us to retrieve the private key for the leaf address if one was used to construct the transaction.
 
@@ -186,15 +188,25 @@ class Transactions(object):
             master_password = master_password.decode('utf-8')
 
         try:
-            # Create a Key object from the private key (master_password)
-            private_key = Key(master_password)
+            # Derive the private key from the passphrase using pycoin (BIP32)
+            bip32_node = BIP32Node.from_master_secret(master_password.encode('utf-8'), netcode=netcode)
         
-            # If the transaction is unsigned, use the private key to sign it
+            # If a path is provided, derive the leaf key, otherwise use the master key
+            private_key_wif = bip32_node.subkey_for_path(path).wif() if path else bip32_node.wif()
+
+            # Create a Key object from the derived private key (WIF format)
+            private_key = Key(private_key_wif)
+        
+            # Sign the transaction using the private key
             signed_tx = sign_tx(tx, private_key)
             return signed_tx
         except Exception as e:
             # Handle possible errors (e.g., invalid key format or transaction errors)
             raise ValueError(f"Failed to sign transaction: {e}")
+
+
+
+
     def _select_inputs(self, address, amount, n_outputs=2, min_confirmations=6):
         """
         Selects the inputs to fulfill the amount
