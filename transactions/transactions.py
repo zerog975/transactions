@@ -180,13 +180,13 @@ class Transactions(object):
     def sign_transaction(self, unsigned_tx, master_password, unspents, path=''):
         """
         Signs a transaction with the derived private key from the provided BIP32 master password.
-
+        
         Args:
-            unsigned_tx (CTransaction): The unsigned transaction object (from the bit library).
+            unsigned_tx (bit.transaction.TxObj): The unsigned transaction object (from the bit library).
             master_password (str): The BIP32 master password (or seed).
             unspents (list): List of unspent transaction outputs (UTXOs) required to sign the transaction.
             path (str): Path to the leaf address in the BIP32 wallet. (Optional)
-
+        
         Returns:
             str: Signed transaction in hex format.
         """
@@ -205,16 +205,15 @@ class Transactions(object):
             private_key_wif = bip32_node.subkey_for_path(path).wif() if path else bip32_node.wif()
 
             # Use the `bit` library to create a PrivateKey object
-            private_key = bit.Key(private_key_wif)
+            private_key = Key(private_key_wif)
 
             # Sign the transaction using the derived private key and unspents (UTXOs)
-            signed_tx = bit.transaction.sign_tx(unsigned_tx, private_key, unspents=unspents)
+            signed_tx = sign_tx(unsigned_tx, private_key, unspents=unspents)
 
             return signed_tx
 
         except Exception as e:
             raise ValueError(f"Failed to sign transaction: {e}")
-
 
 
 
