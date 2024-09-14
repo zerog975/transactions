@@ -212,6 +212,9 @@ class Transactions(object):
         bitcoin.SelectParams('testnet' if self.testnet else 'mainnet')
 
         try:
+            # Define the correct netcode for pycoin's BIP32Node
+            netcode = 'XTN' if self.testnet else 'BTC'
+
             # Derive the master node from the BIP32 master password (seed)
             bip32_node = BIP32Node.from_master_secret(master_password.encode('utf-8'), netcode=netcode)
 
@@ -231,6 +234,7 @@ class Transactions(object):
 
         except Exception as e:
             raise ValueError(f"Failed to sign transaction: {e}")
+
 
 
 
