@@ -14,7 +14,12 @@ from bitcoin.core.script import SignatureHash, SIGHASH_ALL
 import bitcoin.rpc
 
 # Set network parameters (testnet/mainnet)
-SelectParams('testnet')
+#SelectParams('testnet')
+from bitcoin import set_network
+
+##testing
+# Set to 'testnet' or 'mainnet'
+set_network('testnet')
 
 
 # Importing from pycoin for BIP32 key management
