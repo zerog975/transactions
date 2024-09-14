@@ -6,8 +6,8 @@ import logging
 import os
 
 # Importing necessary modules from python-bitcoinlib
-from bitcoin.core import CMutableTransaction, CMutableTxIn, CMutableTxOut, COutPoint, lx, CScript
-from bitcoin.wallet import CBitcoinAddress, CBitcoinAddressError
+from bitcoin.core import CMutableTransaction, CMutableTxIn, CMutableTxOut, COutPoint, lx, CScript, b2x
+from bitcoin.wallet import CBitcoinAddress, CBitcoinAddressError, CBitcoinSecret
 
 # Importing from pycoin for BIP32 key management
 from pycoin.key.BIP32Node import BIP32Node
@@ -180,13 +180,13 @@ class Transactions(object):
     def sign_transaction(self, unsigned_tx, master_password, unspents, path=''):
         """
         Signs a transaction with the derived private key from the provided BIP32 master password.
-        
+
         Args:
-            unsigned_tx (bit.transaction.TxObj): The unsigned transaction object (from the bit library).
+            unsigned_tx (CTransaction): The unsigned transaction object (from python-bitcoinlib).
             master_password (str): The BIP32 master password (or seed).
             unspents (list): List of unspent transaction outputs (UTXOs) required to sign the transaction.
             path (str): Path to the leaf address in the BIP32 wallet. (Optional)
-        
+
         Returns:
             str: Signed transaction in hex format.
         """
@@ -204,13 +204,16 @@ class Transactions(object):
             # If a path is provided, derive the subkey for that specific path, otherwise use the master key
             private_key_wif = bip32_node.subkey_for_path(path).wif() if path else bip32_node.wif()
 
-            # Use the `bit` library to create a PrivateKey object
-            private_key = Key(private_key_wif)
+            # Use the `python-bitcoinlib` to create a SecretKey object
+            private_key = CBitcoinSecret(private_key_wif)
 
             # Sign the transaction using the derived private key and unspents (UTXOs)
-            signed_tx = sign_tx(unsigned_tx, private_key, unspents=unspents)
+            for txin, unspent in zip(unsigned_tx.vin, unspents):
+                sighash = SignatureHash(unspent['scriptPubKey'], unsigned_tx, txin.prevout.n, SIGHASH_ALL)
+                sig = private_key.sign(sighash) + bytes([SIGHASH_ALL])
+                txin.scriptSig = CScript([sig, private_key.pub])
 
-            return signed_tx
+            return b2x(unsigned_tx.serialize())
 
         except Exception as e:
             raise ValueError(f"Failed to sign transaction: {e}")
