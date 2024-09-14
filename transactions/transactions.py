@@ -49,8 +49,6 @@ rpc_port = '18332'  # Port for testnet
 rpc_url = f'http://{rpc_user}:{rpc_password}@{rpc_host}:{rpc_port}'
 rpc_connection = AuthServiceProxy(rpc_url)
 
-# Instantiate Transactions class with RPC connection
-#transactions = Transactions(service='daemon', testnet=True, username='bitcoinrpcuser1337', password='bitcoinrpcpassword1337', host='10.0.0.98', port='18332', wallet_filename='legacytestnetwallet')
 
 
 
@@ -78,6 +76,7 @@ if __name__ == "__main__":
     _dust = 600
 
     def __init__(self, service='daemon', testnet=True, username='', password='', host='', port='', wallet_filename=''):
+        print(f"Initialized Transactions with service={service}, testnet={testnet}")
         """
         Args:
             service (str): currently supports _blockr_ for blockr.io and and _daemon_ for bitcoin daemon. Defaults to _blockr_
