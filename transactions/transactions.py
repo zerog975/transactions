@@ -204,31 +204,22 @@ class Transactions(object):
         Returns:
             str: Signed transaction in hex format.
         """
-        # Ensure master_password is a string and encode it as required
         if isinstance(master_password, bytes):
             master_password = master_password.decode('utf-8')
 
-        # Set the correct Bitcoin network (testnet or mainnet)
         bitcoin.SelectParams('testnet' if self.testnet else 'mainnet')
 
         try:
-            # Define the correct netcode for pycoin's BIP32Node
             netcode = 'XTN' if self.testnet else 'BTC'
-
-            # Derive the master node from the BIP32 master password (seed)
             bip32_node = BIP32Node.from_master_secret(master_password.encode('utf-8'), netcode=netcode)
-
-            # If a path is provided, derive the subkey for that specific path, otherwise use the master key
             private_key_wif = bip32_node.subkey_for_path(path).wif() if path else bip32_node.wif()
-
-            # Use the `python-bitcoinlib` to create a SecretKey object
             private_key = CBitcoinSecret(private_key_wif)
 
-            # Sign the transaction using the derived private key and unspents (UTXOs)
             for txin, unspent in zip(unsigned_tx.vin, unspents):
-                if 'scriptPubKey' not in unspent:
-                    raise ValueError(f"Missing scriptPubKey in unspent: {unspent}")
-                
+                if 'scriptPubKey' not in unspent or not unspent['scriptPubKey']:
+                    # Fetch scriptPubKey using RPC if missing
+                    unspent['scriptPubKey'] = self.fetch_scriptpubkey(unspent['txid'], unspent['vout'])
+
                 sighash = SignatureHash(unspent['scriptPubKey'], unsigned_tx, txin.prevout.n, SIGHASH_ALL)
                 sig = private_key.sign(sighash) + bytes([SIGHASH_ALL])
                 txin.scriptSig = CScript([sig, private_key.pub])
@@ -237,6 +228,7 @@ class Transactions(object):
 
         except Exception as e:
             raise ValueError(f"Failed to sign transaction: {e}")
+
 
 
 
