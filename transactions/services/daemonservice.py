@@ -38,27 +38,23 @@ class BitcoinDaemonService:
         self._port = port or int(os.getenv('BITCOIN_PORT'))
         self.wallet_filename = wallet_filename or os.getenv('WALLET_FILENAME')
 
+        # Initialize the RPC connection using the _url property
+        self.rpc_connection = AuthServiceProxy(self._url)  # Using the _url property here
+
         # Retrieve the network (mainnet or testnet) from environment variables or arguments
         self.network = 'testnet' if testnet else 'mainnet'
         
         # Define a default minimum transaction fee (in satoshi) or retrieve it dynamically
-        ###
-        ###   Need to update
         self._min_transaction_fee = 10000  # This is just a placeholder value, adjust as needed
         self._min_dust = 600  # Set this to your desired dust limit (in satoshis)
         
-        logging.debug(f"Initializing BitcoinDaemonService with wallet_filename={self.wallet_filename} on network={self.network}")
-        
-        # Set up session for making requests with retry support
-        self._session = requests.Session()
-        self._session.mount('http://', requests.adapters.HTTPAdapter(max_retries=3))
+        logging.debug(f"Initializing BitcoinDaemonService with wallet={self.wallet_filename}")
 
     @property
     def _url(self):
         """
         Construct the Bitcoin RPC URL.
         """
-        # Use the wallet_filename to create the URL if provided, otherwise use the base URL
         if self.wallet_filename:
             return f'http://{self._username}:{self._password}@{self._host}:{self._port}/wallet/{self.wallet_filename}'
         else:
