@@ -226,6 +226,9 @@ class Transactions(object):
 
             # Sign the transaction using the derived private key and unspents (UTXOs)
             for txin, unspent in zip(unsigned_tx.vin, unspents):
+                if 'scriptPubKey' not in unspent:
+                    raise ValueError(f"Missing scriptPubKey in unspent: {unspent}")
+                
                 sighash = SignatureHash(unspent['scriptPubKey'], unsigned_tx, txin.prevout.n, SIGHASH_ALL)
                 sig = private_key.sign(sighash) + bytes([SIGHASH_ALL])
                 txin.scriptSig = CScript([sig, private_key.pub])
