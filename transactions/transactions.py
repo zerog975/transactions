@@ -6,14 +6,14 @@ import logging
 from bitcoinrpc.authproxy import AuthServiceProxy
 
 # Importing necessary modules from python-bitcoinlib
-from bitcoin.core import CMutableTransaction, CMutableTxIn, CMutableTxOut, COutPoint, lx, CScript, b2x
+from bitcoin.core import CMutableTransaction, CMutableTxIn, CMutableTxOut, COutPoint, lx, CScript, b2x, SelectParams
 from bitcoin.wallet import CBitcoinAddress, CBitcoinAddressError, CBitcoinSecret
 from bitcoin.core.script import SignatureHash, SIGHASH_ALL
 import bitcoin.rpc
 
 # Set network parameters (testnet/mainnet)
 import bitcoin
-bitcoin.SelectParams('testnet')  # Adjust as needed
+SelectParams('testnet')  # Adjust as needed
 
 # Importing from pycoin for BIP32 key management
 from pycoin.key.BIP32Node import BIP32Node
