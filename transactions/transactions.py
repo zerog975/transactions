@@ -50,7 +50,7 @@ rpc_url = f'http://{rpc_user}:{rpc_password}@{rpc_host}:{rpc_port}'
 rpc_connection = AuthServiceProxy(rpc_url)
 
 # Instantiate Transactions class with RPC connection
-transactions = Transactions(service='daemon', testnet=True, username='your_rpc_username', password='your_rpc_password', host='localhost', port='18332', wallet_filename='your_wallet')
+#transactions = Transactions(service='daemon', testnet=True, username='bitcoinrpcuser1337', password='bitcoinrpcpassword1337', host='10.0.0.98', port='18332', wallet_filename='legacytestnetwallet')
 
 
 
@@ -68,7 +68,10 @@ class Transactions(object):
 
     All amounts are in satoshi.
     """
-
+if __name__ == "__main__":
+    transactions = Transactions(service='daemon', testnet=True, username='bitcoinrpcuser1337', 
+                                password='bitcoinrpcpassword1337', host='10.0.0.98', 
+                                port='18332', wallet_filename='legacytestnetwallet')
     # Transaction fee per 1k bytes
     _min_tx_fee = 10000
     # dust
