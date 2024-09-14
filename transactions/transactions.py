@@ -200,11 +200,11 @@ class Transactions(object):
             # If a path is provided, derive the subkey for that specific path, otherwise use the master key
             private_key_wif = bip32_node.subkey_for_path(path).wif() if path else bip32_node.wif()
 
-            # Create a Key object from the derived private key (WIF format)
-            private_key = self._get_private_key(private_key_wif)
+            # Use the `bit` library to create a PrivateKey object
+            private_key = bit.Key(private_key_wif)
 
             # Sign the transaction using the derived private key and unspents (UTXOs)
-            signed_tx = sign_tx(unsigned_tx, private_key, unspents=unspents)
+            signed_tx = bit.transaction.sign_tx(unsigned_tx, private_key, unspents=unspents)
 
             return signed_tx
 
