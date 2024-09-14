@@ -3,61 +3,31 @@ from __future__ import absolute_import, division, unicode_literals
 from builtins import object
 import codecs
 import logging
-import os
+from bitcoinrpc.authproxy import AuthServiceProxy
 
 # Importing necessary modules from python-bitcoinlib
 from bitcoin.core import CMutableTransaction, CMutableTxIn, CMutableTxOut, COutPoint, lx, CScript, b2x
 from bitcoin.wallet import CBitcoinAddress, CBitcoinAddressError, CBitcoinSecret
-from bitcoin.core.script import CScript, OP_RETURN, SignatureHash, SIGHASH_ALL
+from bitcoin.core.script import SignatureHash, SIGHASH_ALL
 import bitcoin.rpc
 
-# If you're using testnet, set the network parameters
+# Set network parameters (testnet/mainnet)
 import bitcoin
-bitcoin.SelectParams('testnet')
-
-
-#bitcoin.SelectParams('testnet')
-#from bitcoin.core import SelectParams
-
-#SelectParams('testnet')
-
-
+bitcoin.SelectParams('testnet')  # Adjust as needed
 
 # Importing from pycoin for BIP32 key management
 from pycoin.key.BIP32Node import BIP32Node
-from pycoin.encoding import EncodingError
 
 # Importing the `bit` library for transaction handling
-import bit
-from bit.transaction import address_to_scriptpubkey, sign_tx
-from bit import Key
+from bit.transaction import address_to_scriptpubkey
 
-
-# Removed import of InvalidAddress
-# from bit.exceptions import InvalidAddress
-
+# Import your BitcoinDaemonService
 from .services.daemonservice import BitcoinDaemonService
-
-from bitcoinrpc.authproxy import AuthServiceProxy
-
-# Example RPC connection setup 
-rpc_user = "bitcoinrpcuser1337"
-rpc_password = "bitcoinrpcpassword1337"
-rpc_host = '10.0.0.98'
-rpc_port = '18332'  # Port for testnet
-
-rpc_url = f'http://{rpc_user}:{rpc_password}@{rpc_host}:{rpc_port}'
-rpc_connection = AuthServiceProxy(rpc_url)
-
-
-
-
-
-
 
 # Initialize logging
 logging.basicConfig(level=logging.DEBUG)
 
+# Supported services
 SERVICES = ['daemon']
 
 class Transactions(object):
@@ -66,57 +36,60 @@ class Transactions(object):
 
     All amounts are in satoshi.
     """
-if __name__ == "__main__":
-    transactions = Transactions(service='daemon', testnet=True, username='bitcoinrpcuser1337', 
-                                password='bitcoinrpcpassword1337', host='10.0.0.98', 
-                                port='18332', wallet_filename='legacytestnetwallet')
-    # Transaction fee per 1k bytes
+
+    # Transaction fee per 1k bytes and dust amount
     _min_tx_fee = 10000
-    # dust
     _dust = 600
 
     def __init__(self, service='daemon', testnet=True, username='', password='', host='', port='', wallet_filename=''):
-        print(f"Initialized Transactions with service={service}, testnet={testnet}")
         """
         Args:
-            service (str): currently supports _blockr_ for blockr.io and and _daemon_ for bitcoin daemon. Defaults to _blockr_
-            testnet (bool): use True if you want to use tesnet. Defaults to False
-            username (str): username to connect to the bitcoin daemon
-            password (str): password to connect to the bitcoin daemon
-            host (str): host of the bitcoin daemon
-            port (str): port of the bitcoin daemon
-            wallet_filename (str): the name of the wallet to use with the bitcoin daemon
+            service (str): Service type. Currently supports 'daemon' for bitcoin daemon. Defaults to 'daemon'.
+            testnet (bool): Whether to use testnet. Defaults to True.
+            username (str): Username for bitcoin daemon RPC.
+            password (str): Password for bitcoin daemon RPC.
+            host (str): Bitcoin daemon host.
+            port (str): Bitcoin daemon port.
+            wallet_filename (str): The wallet filename to use with bitcoin daemon.
         """
         self.testnet = testnet
 
+        # Validate the service
         if service not in SERVICES:
             raise Exception(f"Service '{service}' not supported")
+
+        # Initialize the Bitcoin daemon service
         if service == 'daemon':
             self._service = BitcoinDaemonService(username, password, host, port, testnet, wallet_filename)
 
+        # Set transaction fee and dust limit
         self._min_tx_fee = self._service._min_transaction_fee
         self._dust = self._service._min_dust
 
     def push(self, tx):
         """
+        Pushes a signed transaction to the network.
+        
         Args:
-            tx: hex of signed transaction
+            tx (str): Hex of the signed transaction.
         Returns:
-            pushed transaction
+            str: Transaction ID.
         """
         self._service.push_tx(tx)
         return bitcoin.txhash(tx)
 
     def get(self, hash, account="*", max_transactions=100, min_confirmations=6, raw=False):
         """
+        Get transaction data.
+        
         Args:
-            hash: can be a bitcoin address or a transaction id.
-            account (Optional[str]): used when using bitcoind. bitcoind
-                does not provide an easy way to retrieve transactions for a
-                single address. By using account we can retrieve transactions
-                for addresses in a specific account
+            hash (str): A bitcoin address or a transaction ID.
+            account (str): Optional account for filtering transactions in bitcoind.
+            max_transactions (int): Maximum transactions to retrieve. Defaults to 100.
+            min_confirmations (int): Minimum confirmations for UTXOs.
+            raw (bool): Return raw transaction data.
         Returns:
-            transaction
+            dict: Transaction and UTXO data.
         """
         if len(hash) < 64:
             txs = self._service.list_transactions(hash, account=account, max_transactions=max_transactions)
@@ -126,18 +99,15 @@ if __name__ == "__main__":
             return self._service.get_transaction(hash, raw=raw)
 
     def import_address(self, address, account="", rescan=False):
+        """
+        Imports a bitcoin address into the wallet.
+        """
         if isinstance(self._service, BitcoinDaemonService):
             self._service.import_address(address, account, rescan=rescan)
 
     def validate_address(self, address):
         """
         Validates a Bitcoin address.
-
-        Args:
-            address (str): Bitcoin address to validate.
-        
-        Raises:
-            CBitcoinAddressError: If the address is invalid.
         """
         try:
             CBitcoinAddress(address)
@@ -148,50 +118,34 @@ if __name__ == "__main__":
 
     def simple_transaction(self, from_address, to, op_return=None, min_confirmations=6):
         """
-        Args:
-            from_address (str): bitcoin address originating the transaction
-            to: tuple of ``(to_address, amount)`` or list of tuples ``[(to_addr1, amount1), (to_addr2, amount2)]``. Amounts are in *satoshi*
-            op_return (str): ability to set custom ``op_return``
-            min_confirmations (int): minimal number of required confirmations
-
-        Returns:
-            transaction
+        Creates a simple transaction.
         """
         to = [to] if not isinstance(to, list) else to
         amount = sum([amount for _, amount in to])
-        n_outputs = len(to) + 1  # change
+        n_outputs = len(to) + 1  # For change
+
         if op_return:
             n_outputs += 1
 
-        # Validate the from_address and to addresses
+        # Validate addresses
         self.validate_address(from_address)
         for to_address, _ in to:
             self.validate_address(to_address)
 
-        # select inputs
         inputs, change = self._select_inputs(from_address, amount, n_outputs, min_confirmations=min_confirmations)
         outputs = [{'address': to_address, 'value': amount} for to_address, amount in to]
         outputs += [{'address': from_address, 'value': change}]
 
-        # add op_return
         if op_return:
             outputs += [{'script': self._op_return_hex(op_return), 'value': 0}]
+
         return self.build_transaction(inputs, outputs)
 
     def build_transaction(self, inputs, outputs):
         """
-        Build transaction using python-bitcoinlib
-
-        Args:
-            inputs (list): inputs in the form of
-                [{'txid': '...', 'vout': 0, 'amount': 10000}, ...]
-            outputs (list): outputs in the form of
-                [{'address': '...', 'value': 5000}, {'script': CScript([...]), 'value': 0}, ...]
-        Returns:
-            CMutableTransaction: unsigned transaction object
+        Build and return a CMutableTransaction.
         """
         txins = [CMutableTxIn(COutPoint(lx(input['txid']), input['vout'])) for input in inputs]
-    
         txouts = []
         for output in outputs:
             if 'script' in output:
@@ -205,14 +159,10 @@ if __name__ == "__main__":
 
         return CMutableTransaction(txins, txouts)
 
-
-
-
-
-
-
-
     def sign_transaction(self, unsigned_tx, master_password, unspents, path=''):
+        """
+        Signs the transaction with the derived private key.
+        """
         if isinstance(master_password, bytes):
             master_password = master_password.decode('utf-8')
 
@@ -226,7 +176,6 @@ if __name__ == "__main__":
 
             for txin, unspent in zip(unsigned_tx.vin, unspents):
                 if 'scriptPubKey' not in unspent or not unspent['scriptPubKey']:
-                    # Fetch scriptPubKey using RPC if missing
                     unspent['scriptPubKey'] = self.fetch_scriptpubkey(unspent['txid'], unspent['vout'])
 
                 sighash = SignatureHash(unspent['scriptPubKey'], unsigned_tx, txin.prevout.n, SIGHASH_ALL)
@@ -238,57 +187,14 @@ if __name__ == "__main__":
         except Exception as e:
             raise ValueError(f"Failed to sign transaction: {e}")
 
-
-#    def sign_transaction(self, tx, master_password, path=''):
-#        """
-#        Args:
-#            tx: hex transaction to sign
-#            master_password: master password for BIP32 wallets. Can be either a
-#                master_secret or a wif
-#            path (Optional[str]): optional path to the leaf address of the
-##                BIP32 wallet. This allows us to retrieve private key for the
-#                leaf address if one was used to construct the transaction.
-#        Returns:
-#            signed transaction
-
-#        .. note:: Only BIP32 hierarchical deterministic wallets are currently
-#            supported.
-
-#        """
-#        netcode = 'XTN' if self.testnet else 'BTC'
-
-        # TODO review
-        # check if its a wif
-#        try:
-#            BIP32Node.from_text(master_password)
-#            return bitcoin.signall(tx, master_password)
-#        except (AttributeError, EncodingError):
-            # if its not get the wif from the master secret
-#            return bitcoin.signall(tx, BIP32Node.from_master_secret(master_password, netcode=netcode).subkey_for_path(path).wif())
-
-
-
-
-
-
     def _select_inputs(self, address, amount, n_outputs=2, min_confirmations=6):
         """
-        Selects the inputs to fulfill the amount
-
-        Args:
-            address (str): bitcoin address to select inputs for
-            amount (int): amount to fulfill in satoshi
-            n_outputs (int): number of outputs
-            min_confirmations (int): minimal number of required confirmations
-
-        Returns:
-            tuple: selected inputs and change
+        Select inputs for the transaction.
         """
         unspents = self.get(address, min_confirmations=min_confirmations)['unspents']
         if not unspents:
             raise Exception("No spendable outputs found")
 
-        # unspents are sorted, with the smallest amounts first
         unspents = sorted(unspents, key=lambda d: d['amount'])
         balance, inputs = 0, []
         fee = self._service._min_transaction_fee
@@ -303,84 +209,35 @@ if __name__ == "__main__":
         return inputs, change
 
     def _op_return_hex(self, op_return):
-        try:
-            hex_op_return = codecs.encode(op_return, 'hex')
-        except TypeError:
-            hex_op_return = codecs.encode(op_return.encode('utf-8'), 'hex')
+        hex_op_return = codecs.encode(op_return.encode('utf-8'), 'hex')
         return "6a%x%s" % (len(op_return), hex_op_return.decode('utf-8'))
 
     def estimate_fee(self, n_inputs, n_outputs):
         """
-        Estimate transaction fee based on the number of inputs and outputs
-
-        Args:
-            n_inputs (int): number of inputs
-            n_outputs (int): number of outputs
-
-        Returns:
-            int: estimated fee in satoshi
+        Estimate transaction fee.
         """
         estimated_size = 10 + 148 * n_inputs + 34 * n_outputs
         return (estimated_size // 1000 + 1) * self._min_tx_fee
 
-    def decode(self, tx):
-        """
-        Decodes the given transaction.
-
-        Args:
-            tx: hex of transaction
-        Returns:
-            decoded transaction
-
-        .. note:: Only supported for blockr.io at the moment.
-        """
-        if not isinstance(self._service, BitcoinBlockrService):
-            raise NotImplementedError('Currently only supported for "blockr.io"')
-        return self._service.decode(tx)
-
-    def get_block_raw(self, block):
-        """
-        Args:
-            block: block hash or number or special keywords like "last", "first"
-        Returns:
-            raw block data
-        """
-        return self._service.get_block_raw(block)
-
-    def get_block_info(self, block):
-        """
-        Args:
-            block: block hash or number or special keywords like "last", "first"
-        Returns:
-            basic block data
-        """
-        return self._service.get_block_info(block)
-
     def fetch_scriptpubkey(self, txid, vout):
         """
         Fetch the scriptPubKey using the `gettxout` RPC call.
-        
-        Args:
-            txid (str): The transaction ID.
-            vout (int): The output index in the transaction.
-        
-        Returns:
-            str: The scriptPubKey as a hex string.
         """
-        response = self.rpc_connection.gettxout(txid, vout)
+        response = self._service.rpc_connection.gettxout(txid, vout)
         if response and 'scriptPubKey' in response:
             return response['scriptPubKey']['hex']
         else:
             raise ValueError(f"Failed to retrieve scriptPubKey for {txid}:{vout}")
 
+# Main execution
+if __name__ == "__main__":
+    transactions = Transactions(service='daemon', testnet=True, username='bitcoinrpcuser1337', 
+                                password='bitcoinrpcpassword1337', host='10.0.0.98', 
+                                port='18332', wallet_filename='legacytestnetwallet')
 
-    class Transactions:
-        def __init__(self, rpc_connection=None, testnet=False):
-            self.rpc_connection = rpc_connection  # Ensure you pass the rpc_connection when creating the class instance
-            self.testnet = testnet
+    # Example use case: Create a transaction
+    inputs = [{'txid': 'f219df0756ad72e2a062fa97027f67e86a52864c4de2db2a4c9ed5b6987265dd', 'vout': 0}]
+    outputs = {'mpe22RcPPP1qdNgwLJRPWUcNhbgb8SWGRc': 30000}  # Example output
 
-
-
-    # To simplify method names
-    create = simple_transaction
-    sign = sign_transaction
+    hex_tx = transactions.build_transaction(inputs, outputs)
+    print(f"Serialized transaction: {hex_tx}")
