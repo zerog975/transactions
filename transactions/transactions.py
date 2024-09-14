@@ -210,32 +210,57 @@ class Transactions(object):
 
 
 
-    def sign_transaction(self, unsigned_tx, master_password, unspents, path=''):
-        if isinstance(master_password, bytes):
-            master_password = master_password.decode('utf-8')
+#    def sign_transaction(self, unsigned_tx, master_password, unspents, path=''):
+#        if isinstance(master_password, bytes):
+#            master_password = master_password.decode('utf-8')
 
-        bitcoin.SelectParams('testnet' if self.testnet else 'mainnet')
+#        bitcoin.SelectParams('testnet' if self.testnet else 'mainnet')
 
+#        try:
+#            netcode = 'XTN' if self.testnet else 'BTC'
+#            bip32_node = BIP32Node.from_master_secret(master_password.encode('utf-8'), netcode=netcode)
+#            private_key_wif = bip32_node.subkey_for_path(path).wif() if path else bip32_node.wif()
+#            private_key = CBitcoinSecret(private_key_wif)
+
+#            for txin, unspent in zip(unsigned_tx.vin, unspents):
+#                if 'scriptPubKey' not in unspent or not unspent['scriptPubKey']:
+#                    # Fetch scriptPubKey using RPC if missing
+#                    unspent['scriptPubKey'] = self.fetch_scriptpubkey(unspent['txid'], unspent['vout'])
+
+#                sighash = SignatureHash(unspent['scriptPubKey'], unsigned_tx, txin.prevout.n, SIGHASH_ALL)
+#                sig = private_key.sign(sighash) + bytes([SIGHASH_ALL])
+#                txin.scriptSig = CScript([sig, private_key.pub])
+
+#            return b2x(unsigned_tx.serialize())
+
+#        except Exception as e:
+#            raise ValueError(f"Failed to sign transaction: {e}")
+    def sign_transaction(self, tx, master_password, path=''):
+        """
+        Args:
+            tx: hex transaction to sign
+            master_password: master password for BIP32 wallets. Can be either a
+                master_secret or a wif
+            path (Optional[str]): optional path to the leaf address of the
+                BIP32 wallet. This allows us to retrieve private key for the
+                leaf address if one was used to construct the transaction.
+        Returns:
+            signed transaction
+
+        .. note:: Only BIP32 hierarchical deterministic wallets are currently
+            supported.
+
+        """
+        netcode = 'XTN' if self.testnet else 'BTC'
+
+        # TODO review
+        # check if its a wif
         try:
-            netcode = 'XTN' if self.testnet else 'BTC'
-            bip32_node = BIP32Node.from_master_secret(master_password.encode('utf-8'), netcode=netcode)
-            private_key_wif = bip32_node.subkey_for_path(path).wif() if path else bip32_node.wif()
-            private_key = CBitcoinSecret(private_key_wif)
-
-            for txin, unspent in zip(unsigned_tx.vin, unspents):
-                if 'scriptPubKey' not in unspent or not unspent['scriptPubKey']:
-                    # Fetch scriptPubKey using RPC if missing
-                    unspent['scriptPubKey'] = self.fetch_scriptpubkey(unspent['txid'], unspent['vout'])
-
-                sighash = SignatureHash(unspent['scriptPubKey'], unsigned_tx, txin.prevout.n, SIGHASH_ALL)
-                sig = private_key.sign(sighash) + bytes([SIGHASH_ALL])
-                txin.scriptSig = CScript([sig, private_key.pub])
-
-            return b2x(unsigned_tx.serialize())
-
-        except Exception as e:
-            raise ValueError(f"Failed to sign transaction: {e}")
-
+            BIP32Node.from_text(master_password)
+            return bitcoin.signall(tx, master_password)
+        except (AttributeError, EncodingError):
+            # if its not get the wif from the master secret
+            return bitcoin.signall(tx, BIP32Node.from_master_secret(master_password, netcode=netcode).subkey_for_path(path).wif())
 
 
 
