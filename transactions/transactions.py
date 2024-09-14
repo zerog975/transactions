@@ -13,7 +13,8 @@ import bitcoin.rpc
 
 # Set network parameters (testnet/mainnet)
 import bitcoin
-SelectParams('testnet')  # Adjust as needed
+bitcoin.SelectParams('testnet')
+
 
 # Importing from pycoin for BIP32 key management
 from pycoin.key.BIP32Node import BIP32Node
