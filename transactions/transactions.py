@@ -8,12 +8,16 @@ import os
 # Importing necessary modules from python-bitcoinlib
 from bitcoin.core import CMutableTransaction, CMutableTxIn, CMutableTxOut, COutPoint, lx, CScript
 from bitcoin.wallet import CBitcoinAddress, CBitcoinAddressError
+
+# Importing from pycoin for BIP32 key management
 from pycoin.key.BIP32Node import BIP32Node
 from pycoin.encoding import EncodingError
 
-from bit.transaction import address_to_scriptpubkey
-from bit.transaction import sign_tx
+# Importing the `bit` library for transaction handling
+import bit
+from bit.transaction import address_to_scriptpubkey, sign_tx
 from bit import Key
+
 
 # Removed import of InvalidAddress
 # from bit.exceptions import InvalidAddress
