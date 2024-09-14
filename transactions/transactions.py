@@ -192,18 +192,6 @@ class Transactions(object):
 
 
     def sign_transaction(self, unsigned_tx, master_password, unspents, path=''):
-        """
-        Signs a transaction with the derived private key from the provided BIP32 master password.
-
-        Args:
-            unsigned_tx (CTransaction): The unsigned transaction object (from python-bitcoinlib).
-            master_password (str): The BIP32 master password (or seed).
-            unspents (list): List of unspent transaction outputs (UTXOs) required to sign the transaction.
-            path (str): Path to the leaf address in the BIP32 wallet. (Optional)
-
-        Returns:
-            str: Signed transaction in hex format.
-        """
         if isinstance(master_password, bytes):
             master_password = master_password.decode('utf-8')
 
@@ -228,6 +216,7 @@ class Transactions(object):
 
         except Exception as e:
             raise ValueError(f"Failed to sign transaction: {e}")
+
 
 
 
@@ -318,6 +307,25 @@ class Transactions(object):
             basic block data
         """
         return self._service.get_block_info(block)
+
+    def fetch_scriptpubkey(self, txid, vout):
+        """
+        Fetch the scriptPubKey using the `gettxout` RPC call.
+        
+        Args:
+            txid (str): The transaction ID.
+            vout (int): The output index in the transaction.
+        
+        Returns:
+            str: The scriptPubKey as a hex string.
+        """
+        response = self.rpc_connection.gettxout(txid, vout)
+        if response and 'scriptPubKey' in response:
+            return response['scriptPubKey']['hex']
+        else:
+            raise ValueError(f"Failed to retrieve scriptPubKey for {txid}:{vout}")
+
+
 
     # To simplify method names
     create = simple_transaction
