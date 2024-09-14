@@ -38,6 +38,25 @@ from bit import Key
 
 from .services.daemonservice import BitcoinDaemonService
 
+from bitcoinrpc.authproxy import AuthServiceProxy
+
+# Example RPC connection setup 
+rpc_user = "bitcoinrpcuser1337"
+rpc_password = "bitcoinrpcpassword1337"
+rpc_host = '10.0.0.98'
+rpc_port = '18332'  # Port for testnet
+
+rpc_url = f'http://{rpc_user}:{rpc_password}@{rpc_host}:{rpc_port}'
+rpc_connection = AuthServiceProxy(rpc_url)
+
+# Instantiate Transactions class with RPC connection
+transactions = Transactions(rpc_connection=rpc_connection, testnet=True)
+
+
+
+
+
+
 # Initialize logging
 logging.basicConfig(level=logging.DEBUG)
 
@@ -324,6 +343,12 @@ class Transactions(object):
             return response['scriptPubKey']['hex']
         else:
             raise ValueError(f"Failed to retrieve scriptPubKey for {txid}:{vout}")
+
+
+    class Transactions:
+        def __init__(self, rpc_connection=None, testnet=False):
+            self.rpc_connection = rpc_connection  # Ensure you pass the rpc_connection when creating the class instance
+            self.testnet = testnet
 
 
 
