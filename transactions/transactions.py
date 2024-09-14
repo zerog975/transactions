@@ -12,10 +12,14 @@ from bitcoin.core.script import CScript, OP_RETURN
 import bitcoin.rpc
 
 # If you're using testnet, set the network parameters
-#bitcoin.SelectParams('testnet')
-from bitcoin.core import SelectParams
+import bitcoin
+bitcoin.SelectParams('testnet')
 
-SelectParams('testnet')
+
+#bitcoin.SelectParams('testnet')
+#from bitcoin.core import SelectParams
+
+#SelectParams('testnet')
 
 
 
