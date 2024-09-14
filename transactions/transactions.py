@@ -8,6 +8,11 @@ import os
 # Importing necessary modules from python-bitcoinlib
 from bitcoin.core import CMutableTransaction, CMutableTxIn, CMutableTxOut, COutPoint, lx, CScript, b2x
 from bitcoin.wallet import CBitcoinAddress, CBitcoinAddressError, CBitcoinSecret
+from bitcoin.core.script import CScript, OP_RETURN
+import bitcoin.rpc
+
+# If you're using testnet, set the network parameters
+bitcoin.SelectParams('testnet')
 
 # Importing from pycoin for BIP32 key management
 from pycoin.key.BIP32Node import BIP32Node
@@ -194,8 +199,8 @@ class Transactions(object):
         if isinstance(master_password, bytes):
             master_password = master_password.decode('utf-8')
 
-        # Determine the correct Bitcoin network (testnet or mainnet)
-        netcode = 'XTN' if self.testnet else 'BTC'
+        # Set the correct Bitcoin network (testnet or mainnet)
+        bitcoin.SelectParams('testnet' if self.testnet else 'mainnet')
 
         try:
             # Derive the master node from the BIP32 master password (seed)
@@ -217,7 +222,6 @@ class Transactions(object):
 
         except Exception as e:
             raise ValueError(f"Failed to sign transaction: {e}")
-
 
 
 
