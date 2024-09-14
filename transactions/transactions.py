@@ -8,7 +8,7 @@ import os
 # Importing necessary modules from python-bitcoinlib
 from bitcoin.core import CMutableTransaction, CMutableTxIn, CMutableTxOut, COutPoint, lx, CScript, b2x
 from bitcoin.wallet import CBitcoinAddress, CBitcoinAddressError, CBitcoinSecret
-from bitcoin.core.script import CScript, OP_RETURN
+from bitcoin.core.script import CScript, OP_RETURN, SignatureHash, SIGHASH_ALL
 import bitcoin.rpc
 
 # If you're using testnet, set the network parameters
@@ -234,6 +234,7 @@ class Transactions(object):
 
         except Exception as e:
             raise ValueError(f"Failed to sign transaction: {e}")
+
 
 
 
