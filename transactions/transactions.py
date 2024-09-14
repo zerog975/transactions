@@ -12,7 +12,12 @@ from bitcoin.core.script import CScript, OP_RETURN
 import bitcoin.rpc
 
 # If you're using testnet, set the network parameters
-bitcoin.SelectParams('testnet')
+#bitcoin.SelectParams('testnet')
+from bitcoin.core import SelectParams
+
+SelectParams('testnet')
+
+
 
 # Importing from pycoin for BIP32 key management
 from pycoin.key.BIP32Node import BIP32Node
