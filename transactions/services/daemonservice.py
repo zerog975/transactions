@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 Bitcoin Daemon Service
-
 """
+
 from __future__ import absolute_import, division, unicode_literals
 
 import json
@@ -11,6 +11,7 @@ import logging
 import os
 from .service import BitcoinService
 from transactions.utils import bitcoin_to_satoshi
+from bitcoinrpc.authproxy import AuthServiceProxy
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -21,7 +22,7 @@ class BitcoinDaemonService:
         """
         Initialize the BitcoinDaemonService with the given parameters.
         If any parameters are not provided, they are fetched from environment variables.
-        
+
         Args:
             username (str): Bitcoin RPC username.
             password (str): Bitcoin RPC password.
@@ -30,7 +31,7 @@ class BitcoinDaemonService:
             testnet (bool): Whether to use the testnet or mainnet.
             wallet_filename (str): Bitcoin wallet filename.
         """
-        
+
         # If arguments are provided, they take priority; otherwise, fall back to environment variables
         self._username = username or os.getenv('BITCOIN_RPCUSER')
         self._password = password or os.getenv('BITCOIN_RPCPASSWORD')
@@ -39,15 +40,15 @@ class BitcoinDaemonService:
         self.wallet_filename = wallet_filename or os.getenv('WALLET_FILENAME')
 
         # Initialize the RPC connection using the _url property
-        self.rpc_connection = AuthServiceProxy(self._url)  # Using the _url property here
+        self.rpc_connection = AuthServiceProxy(self._url)
 
-        # Retrieve the network (mainnet or testnet) from environment variables or arguments
+        # Retrieve the network (mainnet or testnet)
         self.network = 'testnet' if testnet else 'mainnet'
-        
+
         # Define a default minimum transaction fee (in satoshi) or retrieve it dynamically
-        self._min_transaction_fee = 10000  # This is just a placeholder value, adjust as needed
-        self._min_dust = 600  # Set this to your desired dust limit (in satoshis)
-        
+        self._min_transaction_fee = 10000  # Placeholder value, adjust as needed
+        self._min_dust = 600  # Desired dust limit (in satoshis)
+
         logging.debug(f"Initializing BitcoinDaemonService with wallet={self.wallet_filename}")
 
     @property
@@ -63,17 +64,17 @@ class BitcoinDaemonService:
     def make_request(self, method, params=None):
         """
         Make a request to the Bitcoin daemon.
-        
+
         Args:
             method (str): The RPC method name.
             params (list): The parameters to pass to the method.
-        
+
         Returns:
             dict: The parsed JSON response from the daemon.
         """
         if params is None:
             params = []
-        
+
         # Prepare the data for the request
         data = {
             "jsonrpc": "1.0",
@@ -84,19 +85,19 @@ class BitcoinDaemonService:
 
         logging.debug(f"Making RPC request: {method} with params: {params}")
         try:
-            response = self._session.post(
+            response = requests.post(
                 self._url,
                 json=data,
                 headers={'Content-type': 'application/json'},
                 timeout=30
             )
-            
+
             logging.debug(f"Response status code: {response.status_code}")
             logging.debug(f"Response content: {response.text}")
-            
+
             # Raise an error if the response is not successful
             response.raise_for_status()
-            
+
             return response.json()
 
         except requests.exceptions.RequestException as e:
@@ -114,22 +115,13 @@ class BitcoinDaemonService:
 
     def generate(self, numblocks):
         """
-        As per bitcoin-cli docs:
-
-        Mine blocks immediately (before the RPC call returns)
-
-        .. note:: this function can only be used on the regtest network
+        Mine blocks immediately (before the RPC call returns).
 
         Args:
             numblocks (int): How many blocks are generated immediately.
 
         Returns:
-            blockhashes (List[str]): hashes of blocks generated
-
-        Examples:
-
-            Generate 11 blocks
-                >>> generate(11)
+            blockhashes (List[str]): Hashes of blocks generated.
         """
         return self.make_request('generate', (numblocks,))
 
@@ -144,21 +136,28 @@ class BitcoinDaemonService:
 
     def push_tx(self, tx):
         """
-        :param tx: signed tx hash
-        :return: if successful, returns info on the transaction; otherwise, raises an exception
+        Pushes a signed transaction.
+
+        Args:
+            tx (str): Signed transaction in hex format.
+
+        Returns:
+            dict: Information on the transaction if successful.
         """
         response = self.make_request("sendrawtransaction", [tx, True])
         error = response.get('error')
         if error is not None:
             raise Exception(error)
-
         return response
 
     def import_address(self, address, account="*", rescan=False):
         """
-        :param address: address to import
-        :param account: account name to use
-        :param rescan: whether to rescan the blockchain for the address's transactions
+        Import a Bitcoin address into the wallet.
+
+        Args:
+            address (str): Address to import.
+            account (str): Account name.
+            rescan (bool): Whether to rescan the blockchain for transactions related to the address.
         """
         response = self.make_request("importaddress", [address, account, rescan])
         error = response.get('error')
@@ -208,6 +207,16 @@ class BitcoinDaemonService:
         return raw_transaction
 
     def get_transaction(self, txid, raw=False):
+        """
+        Retrieve transaction details.
+
+        Args:
+            txid (str): Transaction ID.
+            raw (bool): If True, return raw transaction data.
+
+        Returns:
+            dict: Processed transaction data or raw transaction data.
+        """
         raw_tx = self.get_raw_transaction(txid)
         if raw:
             return raw_tx
@@ -227,7 +236,7 @@ class BitcoinDaemonService:
     def _get_value_from_vout(self, txid, vout_n):
         try:
             raw_tx = self.get_raw_transaction(txid)
-            return [vout['value'] for vout in tx['vout'] if vout['n'] == vout_n][0]
+            return [vout['value'] for vout in raw_tx['vout'] if vout['n'] == vout_n][0]
         except Exception as e:
             if e.args and e.args[0] == {'message': 'No information available about transaction', 'code': -5}:
                 return 0
@@ -235,15 +244,36 @@ class BitcoinDaemonService:
                 raise
 
     def _construct_transaction(self, tx):
+        """
+        Construct a processed transaction with VINs and VOUTs.
+
+        Args:
+            tx (dict): Raw transaction data.
+
+        Returns:
+            dict: Processed transaction data.
+        """
         result = {}
-        result.update({'confirmations': tx.get('confirmations', ''),
-                       'time': tx.get('time', ''),
-                       'txid': tx.get('txid', ''),
-                       'vins': [{'txid': vin['txid'], 'n': vin['vout'], 'value': bitcoin_to_satoshi(self._get_value_from_vout(vin['txid'], vin['vout'])),
-                                 'address': self._get_address_for_vout(vin['txid'], vin['vout'])} for vin in tx.get('vin', [])],
-                       'vouts': [{'n': vout['n'], 'value': bitcoin_to_satoshi(vout['value']),
-                                  'asm': vout['scriptPubKey']['asm'],
-                                  'hex': vout['scriptPubKey']['hex'],
-                                  'address': vout['scriptPubKey'].get('addresses', ['NONSTANDARD'])[0]} for vout in tx.get('vout', [])]
-                       })
+        result.update({
+            'confirmations': tx.get('confirmations', ''),
+            'time': tx.get('time', ''),
+            'txid': tx.get('txid', ''),
+            'vins': [
+                {
+                    'txid': vin['txid'],
+                    'n': vin['vout'],
+                    'value': bitcoin_to_satoshi(self._get_value_from_vout(vin['txid'], vin['vout'])),
+                    'address': self._get_address_for_vout(vin['txid'], vin['vout'])
+                } for vin in tx.get('vin', [])
+            ],
+            'vouts': [
+                {
+                    'n': vout['n'],
+                    'value': bitcoin_to_satoshi(vout['value']),
+                    'asm': vout['scriptPubKey']['asm'],
+                    'hex': vout['scriptPubKey']['hex'],
+                    'address': vout['scriptPubKey'].get('addresses', ['NONSTANDARD'])[0]
+                } for vout in tx.get('vout', [])
+            ]
+        })
         return result

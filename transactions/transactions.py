@@ -6,21 +6,14 @@ import logging
 from bitcoinrpc.authproxy import AuthServiceProxy
 
 # Importing necessary modules from python-bitcoinlib
-import bitcoin
-#from bitcoin.core import SelectParams  # Fix for SelectParams import
 from bitcoin.core import CMutableTransaction, CMutableTxIn, CMutableTxOut, COutPoint, lx, CScript, b2x
 from bitcoin.wallet import CBitcoinAddress, CBitcoinAddressError, CBitcoinSecret
 from bitcoin.core.script import SignatureHash, SIGHASH_ALL
 import bitcoin.rpc
 
 # Set network parameters (testnet/mainnet)
-#SelectParams('testnet')
-from bitcoin import set_network
-
-##testing
-# Set to 'testnet' or 'mainnet'
-set_network('testnet')
-
+from bitcoin import SelectParams
+SelectParams('testnet')  # Set to 'testnet' or 'mainnet'
 
 # Importing from pycoin for BIP32 key management
 from pycoin.key.BIP32Node import BIP32Node
@@ -173,7 +166,7 @@ class Transactions(object):
         if isinstance(master_password, bytes):
             master_password = master_password.decode('utf-8')
 
-        bitcoin.SelectParams('testnet' if self.testnet else 'mainnet')
+        SelectParams('testnet' if self.testnet else 'mainnet')
 
         try:
             netcode = 'XTN' if self.testnet else 'BTC'
