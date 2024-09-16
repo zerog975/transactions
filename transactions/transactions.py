@@ -113,10 +113,13 @@ class Transactions(object):
 
         for output in outputs:
             if 'script' in output:
+                # Ensure the output value is an integer and the script is properly formatted
+                if not isinstance(output['value'], int):
+                    raise ValueError(f"Output value must be an integer: {output['value']}")
                 txouts.append(CMutableTxOut(output['value'], bytes.fromhex(output['script'])))
             else:
                 try:
-                    # Ensure that the output value is an integer (in satoshis)
+                    # Ensure the output value is an integer
                     if not isinstance(output['value'], int):
                         raise ValueError(f"Output value must be an integer: {output['value']}")
                     
@@ -128,6 +131,7 @@ class Transactions(object):
 
         logging.debug(f"Built transaction: txins: {txins}, txouts: {txouts}")
         return CMutableTransaction(txins, txouts)
+
 
 
     def sign_transaction(self, unsigned_tx, master_password, unspents, path=''):
