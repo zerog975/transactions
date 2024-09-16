@@ -113,7 +113,7 @@ class Transactions(object):
         logging.debug(f"Simple transaction from {from_address} to {to}: inputs: {inputs}, outputs: {outputs}")
         return self.build_transaction(inputs, outputs)
 
-    def sign_transaction(self, unsigned_tx, master_password, unspents, path=''):
+    def sign_transaction(self, unsigned_tx, master_password, path=''):
         logging.debug(f"Signing transaction with master_password: {master_password} and unspents: {unspents}")
         
         # Decode master password if it's in bytes
@@ -232,7 +232,7 @@ class Transactions(object):
         return tx
     
 
-    
+
 # Main execution
 if __name__ == "__main__":
     transactions = Transactions(service='daemon', testnet=True, username='bitcoinrpcuser1337',
