@@ -113,43 +113,32 @@ class Transactions(object):
         logging.debug(f"Simple transaction from {from_address} to {to}: inputs: {inputs}, outputs: {outputs}")
         return self.build_transaction(inputs, outputs)
 
-    def sign_transaction(self, unsigned_tx, master_password, path=''):
-        logging.debug(f"Signing transaction with master_password: {master_password} and unspents: {unspents}")
-        
-        # Decode master password if it's in bytes
-        if isinstance(master_password, bytes):
-            master_password = master_password.decode('utf-8')
+    def sign_transaction(self, tx, master_password, path=''):
+        """
+        Args:
+            tx: hex transaction to sign
+            master_password: master password for BIP32 wallets. Can be either a
+                master_secret or a wif
+            path (Optional[str]): optional path to the leaf address of the
+                BIP32 wallet. This allows us to retrieve private key for the
+                leaf address if one was used to construct the transaction.
+        Returns:
+            signed transaction
 
+        .. note:: Only BIP32 hierarchical deterministic wallets are currently
+            supported.
+
+        """
+        netcode = 'XTN' if self.testnet else 'BTC'
+
+        # TODO review
+        # check if its a wif
         try:
-            # Derive private key using BIP32 and the given master password
-            netcode = 'XTN' if self.testnet else 'BTC'
-            bip32_node = BIP32Node.from_master_secret(master_password.encode('utf-8'), netcode=netcode)
-            private_key_wif = bip32_node.subkey_for_path(path).wif() if path else bip32_node.wif()
-            priv_key = CBitcoinSecret(private_key_wif)
-            pub_key = priv_key.pub
-
-            # Ensure each unspent has 'scriptPubKey'
-            for unspent in unspents:
-                if 'scriptPubKey' not in unspent or not unspent['scriptPubKey']:
-                    unspent['scriptPubKey'] = self.fetch_scriptpubkey(unspent['txid'], unspent['vout'])
-
-            # Sign each input
-            for i, txin in enumerate(unsigned_tx.vin):
-                unspent = unspents[i]
-                txin_scriptPubKey = CScript(bytes.fromhex(unspent['scriptPubKey']))
-                sighash = SignatureHash(txin_scriptPubKey, unsigned_tx, i, SIGHASH_ALL)
-                sig = priv_key.sign(sighash) + bytes([SIGHASH_ALL])
-                txin.scriptSig = CScript([sig, pub_key])
-
-            # Serialize signed transaction
-            signed_tx_hex = unsigned_tx.serialize().hex()
-            logging.debug(f"Signed transaction: {signed_tx_hex}")
-
-            return signed_tx_hex
-
-        except Exception as e:
-            logging.error(f"Failed to sign transaction: {e}")
-            raise ValueError(f"Failed to sign transaction: {e}")
+            BIP32Node.from_text(master_password)
+            return bitcoin.signall(tx, master_password)
+        except (AttributeError, EncodingError):
+            # if its not get the wif from the master secret
+            return bitcoin.signall(tx, BIP32Node.from_master_secret(master_password, netcode=netcode).subkey_for_path(path).wif())
 
 
 
@@ -232,7 +221,7 @@ class Transactions(object):
         return tx
     
 
-
+    
 # Main execution
 if __name__ == "__main__":
     transactions = Transactions(service='daemon', testnet=True, username='bitcoinrpcuser1337',
