@@ -13,6 +13,8 @@ import bitcoin.rpc
 from bitcoin.base58 import decode as b58decode_check
 import hashlib
 
+import bitcoin
+
 from bit import Key
 from bit.network import NetworkAPI
 
@@ -44,6 +46,12 @@ class Transactions(object):
         self.testnet = testnet
         self.netcode = 'XTN' if testnet else 'BTC'  # Set network based on testnet flag
         logging.debug(f"Network: {'Testnet' if self.testnet else 'Mainnet'}")
+
+        # Select network parameters
+        if self.testnet:
+            bitcoin.SelectParams('testnet')
+        else:
+            bitcoin.SelectParams('mainnet')
 
         if service not in SERVICES:
             raise Exception(f"Service '{service}' not supported")
