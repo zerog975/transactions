@@ -134,6 +134,7 @@ class Transactions(object):
 
 
 
+
     def sign_transaction(self, unsigned_tx, master_password, unspents, path=''):
         logging.debug(f"Signing transaction with master_password: {master_password} and unspents: {unspents}")
         
