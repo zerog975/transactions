@@ -127,52 +127,77 @@ class Transactions(object):
 
     def sign_transaction(self, unsigned_tx, master_password, unspents, path=''):
         logging.debug(f"Signing transaction with master_password: {master_password} and unspents: {unspents}")
+        
+        # Decode master password if it's in bytes
         if isinstance(master_password, bytes):
             master_password = master_password.decode('utf-8')
 
         try:
+            # Derive private key using BIP32 and the given master password
             netcode = 'XTN' if self.testnet else 'BTC'
             bip32_node = BIP32Node.from_master_secret(master_password.encode('utf-8'), netcode=netcode)
             private_key_wif = bip32_node.subkey_for_path(path).wif() if path else bip32_node.wif()
             private_key = Key(private_key_wif)
-
+            
+            # Ensure each unspent has 'scriptPubKey'
             for unspent in unspents:
                 if 'scriptPubKey' not in unspent or not unspent['scriptPubKey']:
                     unspent['scriptPubKey'] = self.fetch_scriptpubkey(unspent['txid'], unspent['vout'])
 
+            # Helper function to extract the address from txout
             def txout_to_address(txout):
                 script_pubkey = txout.scriptPubKey
                 if isinstance(script_pubkey, str):
                     script_pubkey = CScript(bytes.fromhex(script_pubkey))
+
+                # Handle P2PKH scripts
                 if (script_pubkey[0] == OP_DUP and script_pubkey[1] == OP_HASH160 and
                         script_pubkey[-2] == OP_EQUALVERIFY and script_pubkey[-1] == OP_CHECKSIG):
+                    
                     pubkey_hash = script_pubkey[2]
+
+                    # Ensure pubkey_hash is converted to bytes if it's an integer
+                    if isinstance(pubkey_hash, int):
+                        pubkey_hash = pubkey_hash.to_bytes(20, 'big')  # 20-byte hash
+
                     prefix = b'\x6f' if self.testnet else b'\x00'
                     pubkey_hash_with_prefix = prefix + pubkey_hash
+
+                    # Calculate checksum
                     checksum = hashlib.sha256(hashlib.sha256(pubkey_hash_with_prefix).digest()).digest()[:4]
                     binary_address = pubkey_hash_with_prefix + checksum
                     address = b2x(binary_address)
                     return str(address)
+                
+                # Handle OP_RETURN scripts
                 elif script_pubkey[0] == OP_RETURN:
                     return "OP_RETURN"
+                
+                # Raise error for unsupported script types
                 else:
                     raise ValueError(f"Unsupported script type: {script_pubkey}")
 
+            # Prepare inputs and outputs
             inputs = [(unspent['txid'], unspent['vout'], unspent['scriptPubKey'], unspent['amount']) for unspent in unspents]
             outputs = [{'address': txout_to_address(txout), 'value': txout.nValue} for txout in unsigned_tx.vout]
 
+            # Check if inputs and outputs are valid
             if not outputs or not inputs:
                 raise ValueError("No valid inputs or outputs found")
 
+            # Create unsigned transaction
             tx_hex = create_new_transaction(inputs, outputs)
-            signed_tx = private_key.sign_transaction(tx_hex)
 
+            # Sign the transaction
+            signed_tx = private_key.sign_transaction(tx_hex)
             logging.debug(f"Signed transaction: {signed_tx}")
+
             return signed_tx
 
         except Exception as e:
             logging.error(f"Failed to sign transaction: {e}")
             raise ValueError(f"Failed to sign transaction: {e}")
+
 
     def _select_inputs(self, address, amount, n_outputs=2, min_confirmations=6):
         unspents = self.get(address, min_confirmations=min_confirmations)['unspents']
