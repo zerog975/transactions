@@ -3,17 +3,20 @@ from __future__ import absolute_import, division, unicode_literals
 from builtins import object
 import codecs
 import logging
+import hashlib
 from bitcoinrpc.authproxy import AuthServiceProxy
 
 # Importing necessary modules from python-bitcoinlib
-from bitcoin.core import CMutableTransaction, CMutableTxIn, CMutableTxOut, COutPoint, lx, CScript, b2x, Hash160
-from bitcoin.wallet import CBitcoinAddress, CBitcoinAddressError, CBitcoinSecret, P2PKHBitcoinAddress
-from bitcoin.core.script import OP_RETURN, OP_DUP, OP_HASH160, OP_EQUALVERIFY, OP_CHECKSIG, CScript
+from bitcoin.core import (
+    CMutableTransaction, CMutableTxIn, CMutableTxOut, COutPoint, lx, CScript, b2x, SelectParams
+)
+from bitcoin.wallet import CBitcoinAddress, CBitcoinAddressError, CBitcoinSecret
+from bitcoin.core.script import (
+    OP_RETURN, OP_DUP, OP_HASH160, OP_EQUALVERIFY, OP_CHECKSIG, SignatureHash, SIGHASH_ALL
+)
 import bitcoin.rpc
 from bitcoin.base58 import decode as b58decode_check
-import hashlib
 
-import bitcoin
 
 from bit import Key
 from bit.network import NetworkAPI
@@ -49,9 +52,9 @@ class Transactions(object):
 
         # Select network parameters
         if self.testnet:
-            bitcoin.SelectParams('testnet')
+            SelectParams('testnet')
         else:
-            bitcoin.SelectParams('mainnet')
+            SelectParams('mainnet')
 
         if service not in SERVICES:
             raise Exception(f"Service '{service}' not supported")
@@ -114,25 +117,6 @@ class Transactions(object):
         logging.debug(f"Simple transaction from {from_address} to {to}: inputs: {inputs}, outputs: {outputs}")
         return self.build_transaction(inputs, outputs)
 
-    def build_transaction(self, inputs, outputs):
-        logging.debug(f"Building transaction with inputs: {inputs} and outputs: {outputs}")
-        txins = [CMutableTxIn(COutPoint(lx(input['txid']), input['vout'])) for input in inputs]
-        txouts = []
-
-        for output in outputs:
-            if 'script' in output:
-                txouts.append(CMutableTxOut(output['value'], output['script']))
-            else:
-                try:
-                    script_pubkey = CScript(address_to_scriptpubkey(output['address']))
-                    txouts.append(CMutableTxOut(output['value'], script_pubkey))
-                except ValueError as e:
-                    logging.error(f"Error building transaction output: {e}")
-                    raise ValueError(f"Invalid Bitcoin address: {output['address']}")
-
-        logging.debug(f"Built transaction: txins: {txins}, txouts: {txouts}")
-        return CMutableTransaction(txins, txouts)
-
     def sign_transaction(self, unsigned_tx, master_password, unspents, path=''):
         logging.debug(f"Signing transaction with master_password: {master_password} and unspents: {unspents}")
         
@@ -147,7 +131,7 @@ class Transactions(object):
             private_key_wif = bip32_node.subkey_for_path(path).wif() if path else bip32_node.wif()
             priv_key = CBitcoinSecret(private_key_wif)
             pub_key = priv_key.pub
-            
+
             # Ensure each unspent has 'scriptPubKey'
             for unspent in unspents:
                 if 'scriptPubKey' not in unspent or not unspent['scriptPubKey']:
@@ -170,6 +154,7 @@ class Transactions(object):
         except Exception as e:
             logging.error(f"Failed to sign transaction: {e}")
             raise ValueError(f"Failed to sign transaction: {e}")
+
 
 
     def _select_inputs(self, address, amount, n_outputs=2, min_confirmations=6):
