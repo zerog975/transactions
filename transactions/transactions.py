@@ -191,11 +191,10 @@ class Transactions(object):
                     unspent['scriptPubKey'] = self.fetch_scriptpubkey(unspent['txid'], unspent['vout'])
 
             # Helper function to extract the address from a txout
-            import hashlib
-            from bitcoin.core import b2x
-
             def txout_to_address(txout):
                 script_pubkey = txout.scriptPubKey
+
+                # Handle P2PKH (Pay-to-PubKey-Hash) scripts
                 if (script_pubkey[0] == OP_DUP and
                     script_pubkey[1] == OP_HASH160 and
                     script_pubkey[-2] == OP_EQUALVERIFY and
@@ -223,6 +222,12 @@ class Transactions(object):
                     # Convert the binary address to a base58 address
                     address = b2x(binary_address)  # You might need a proper base58 encoder here
                     return str(address)
+
+                # Handle OP_RETURN scripts (embedded data, no address)
+                elif script_pubkey[0] == OP_RETURN:
+                    return "OP_RETURN"
+
+                # Raise an exception for unsupported script types
                 else:
                     raise ValueError(f"Unsupported script type: {script_pubkey}")
 
