@@ -186,6 +186,41 @@ class Transactions(object):
             return response['scriptPubKey']['hex']
         else:
             raise ValueError(f"Failed to retrieve scriptPubKey for {txid}:{vout}")
+    
+
+    def build_transaction(self, inputs, outputs):
+        """
+        Build a transaction using the provided inputs and outputs.
+        
+        Args:
+            inputs (list): A list of dictionaries containing 'txid', 'vout', 'scriptPubKey', and 'amount'.
+            outputs (list): A list of dictionaries containing 'address' or 'script' and 'value'.
+            
+        Returns:
+            CMutableTransaction: The constructed Bitcoin transaction.
+        """
+        # Create the transaction inputs
+        txins = []
+        for input in inputs:
+            outpoint = COutPoint(lx(input['txid']), input['vout'])
+            txin = CMutableTxIn(outpoint)
+            txins.append(txin)
+        
+        # Create the transaction outputs
+        txouts = []
+        for output in outputs:
+            if 'script' in output:
+                # OP_RETURN output
+                txout = CMutableTxOut(output['value'], CScript(bytes.fromhex(output['script'])))
+            else:
+                # Standard P2PKH output
+                txout = CMutableTxOut(output['value'], CScript([OP_DUP, OP_HASH160, b58decode_check(output['address']), OP_EQUALVERIFY, OP_CHECKSIG]))
+            txouts.append(txout)
+
+        # Create the transaction
+        tx = CMutableTransaction(txins, txouts)
+        logging.debug(f"Built transaction: {b2x(tx.serialize())}")
+        return tx
 
 # Main execution
 if __name__ == "__main__":
