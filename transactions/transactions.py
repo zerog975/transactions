@@ -175,8 +175,9 @@ class Transactions(object):
             bip32_node = BIP32Node.from_master_secret(master_password.encode('utf-8'), netcode=netcode)
             private_key_wif = bip32_node.subkey_for_path(path).wif() if path else bip32_node.wif()
 
-            # Decode WIF manually without using CBitcoinSecret
-            private_key = Key(b58decode_check(private_key_wif)[1:-1])
+            # Manually decode the WIF to obtain the private key bytes
+            decoded_key = b58decode_check(private_key_wif)
+            private_key = CBitcoinSecret.from_secret_bytes(decoded_key[1:-1])  # Skip prefix and checksum
 
             for txin, unspent in zip(unsigned_tx.vin, unspents):
                 if 'scriptPubKey' not in unspent or not unspent['scriptPubKey']:
