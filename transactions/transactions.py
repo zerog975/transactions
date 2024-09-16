@@ -116,7 +116,7 @@ class Transactions(object):
                 txouts.append(CMutableTxOut(output['value'], bytes.fromhex(output['script'])))
             else:
                 try:
-                    # Validate that the value is an integer, not a string or any other type
+                    # Ensure that the output value is an integer (in satoshis)
                     if not isinstance(output['value'], int):
                         raise ValueError(f"Output value must be an integer: {output['value']}")
                     
