@@ -170,9 +170,6 @@ class Transactions(object):
 
 
     def sign_transaction(self, unsigned_tx, master_password, unspents, path=''):
-        """
-        Signs the transaction with the derived private key using the bit library.
-        """
         if isinstance(master_password, bytes):
             master_password = master_password.decode('utf-8')
 
@@ -192,55 +189,31 @@ class Transactions(object):
                     unspent['scriptPubKey'] = self.fetch_scriptpubkey(unspent['txid'], unspent['vout'])
 
             # Helper function to extract the address from a txout
-   
-
             def txout_to_address(txout):
                 script_pubkey = txout.scriptPubKey
-
-                # Convert the scriptPubKey to CScript if it's in hex format
                 if isinstance(script_pubkey, str):
                     script_pubkey = CScript(bytes.fromhex(script_pubkey))
 
-                # Handle P2PKH (Pay-to-PubKey-Hash) scripts
                 if (script_pubkey[0] == OP_DUP and
                     script_pubkey[1] == OP_HASH160 and
                     script_pubkey[-2] == OP_EQUALVERIFY and
                     script_pubkey[-1] == OP_CHECKSIG):
-
-                    # Extract the public key hash from the scriptPubKey
                     pubkey_hash = script_pubkey[2]
-
-                    # Convert the pubkey_hash to bytes if it's an int
                     if isinstance(pubkey_hash, int):
                         pubkey_hash = bytes([pubkey_hash])
-
-                    # Add the appropriate prefix for testnet or mainnet
                     prefix = b'\x6f' if self.testnet else b'\x00'
-
-                    # Prepend the prefix to the pubkey_hash
                     pubkey_hash_with_prefix = prefix + pubkey_hash
-
-                    # Perform a double SHA-256 hash on the prefixed pubkey_hash
                     checksum = hashlib.sha256(hashlib.sha256(pubkey_hash_with_prefix).digest()).digest()[:4]
-
-                    # Append the first four bytes of the checksum to the prefixed pubkey_hash
                     binary_address = pubkey_hash_with_prefix + checksum
-
-                    # Convert the binary address to a base58 address
                     address = b2x(binary_address)
                     return str(address)
 
-                # Handle OP_RETURN scripts (embedded data, no address)
                 elif script_pubkey[0] == OP_RETURN:
                     return "OP_RETURN"
-
-                # Raise an exception for unsupported script types
                 else:
                     raise ValueError(f"Unsupported script type: {script_pubkey}")
 
-
-
-            # Prepare inputs and outputs in the format expected by the bit library
+            # Prepare inputs and outputs
             inputs = [(unspent['txid'], unspent['vout'], unspent['scriptPubKey'], unspent['amount']) for unspent in unspents]
             outputs = [{'address': txout_to_address(txout), 'value': txout.nValue} for txout in unsigned_tx.vout]
 
@@ -254,6 +227,7 @@ class Transactions(object):
 
         except Exception as e:
             raise ValueError(f"Failed to sign transaction using bit library: {e}")
+
 
 
 
