@@ -192,8 +192,16 @@ class Transactions(object):
             # Helper function to extract the address from a txout
             def txout_to_address(txout):
                 script_pubkey = txout.scriptPubKey
-                address = NetworkAPI.script_to_address(script_pubkey)
-                return address
+                if (script_pubkey[0] == OP_DUP and
+                    script_pubkey[1] == OP_HASH160 and
+                    script_pubkey[-2] == OP_EQUALVERIFY and
+                    script_pubkey[-1] == OP_CHECKSIG):
+                    
+                    pubkey_hash = script_pubkey[2]
+                    address = CBitcoinAddress.from_scriptPubKey(script_pubkey)
+                    return str(address)
+                else:
+                    raise ValueError(f"Unsupported script type: {script_pubkey}")
 
             # Prepare inputs and outputs in the format expected by the bit library
             inputs = [(unspent['txid'], unspent['vout'], unspent['scriptPubKey'], unspent['amount']) for unspent in unspents]
@@ -209,7 +217,6 @@ class Transactions(object):
 
         except Exception as e:
             raise ValueError(f"Failed to sign transaction using bit library: {e}")
-
 
 
 
