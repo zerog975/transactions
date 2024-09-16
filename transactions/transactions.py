@@ -182,6 +182,12 @@ class Transactions(object):
             # Create a Key object using the bit library
             private_key = Key(private_key_wif)
 
+            # Ensure that each unspent has a 'scriptPubKey'
+            for unspent in unspents:
+                if 'scriptPubKey' not in unspent or not unspent['scriptPubKey']:
+                    # Fetch scriptPubKey if not present
+                    unspent['scriptPubKey'] = self.fetch_scriptpubkey(unspent['txid'], unspent['vout'])
+
             # Prepare inputs and outputs in the format expected by the bit library
             inputs = [(unspent['txid'], unspent['vout'], unspent['scriptPubKey'], unspent['amount']) for unspent in unspents]
             outputs = [{'address': txout['address'], 'value': txout['value']} for txout in unsigned_tx.vout]
