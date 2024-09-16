@@ -137,9 +137,15 @@ class Transactions(object):
             netcode = 'XTN' if self.testnet else 'BTC'
             bip32_node = BIP32Node.from_master_secret(master_password.encode('utf-8'), netcode=netcode)
             private_key_wif = bip32_node.subkey_for_path(path).wif() if path else bip32_node.wif()
-            priv_key = CBitcoinSecret(private_key_wif)
-            pub_key = priv_key.pub
+
+            # Check if we're on testnet and handle the private key accordingly
+            if self.testnet:
+                priv_key = CBitcoinSecret.from_secret_bytes(b58decode_check(private_key_wif)[1:])
+            else:
+                priv_key = CBitcoinSecret(private_key_wif)
             
+            pub_key = priv_key.pub
+
             # Ensure each unspent has 'scriptPubKey'
             for unspent in unspents:
                 if 'scriptPubKey' not in unspent or not unspent['scriptPubKey']:
@@ -162,6 +168,7 @@ class Transactions(object):
         except Exception as e:
             logging.error(f"Failed to sign transaction: {e}")
             raise ValueError(f"Failed to sign transaction: {e}")
+
 
 
     def _select_inputs(self, address, amount, n_outputs=2, min_confirmations=6):
