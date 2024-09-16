@@ -116,14 +116,19 @@ class Transactions(object):
                 txouts.append(CMutableTxOut(output['value'], bytes.fromhex(output['script'])))
             else:
                 try:
+                    # Validate that the value is an integer, not a string or any other type
+                    if not isinstance(output['value'], int):
+                        raise ValueError(f"Output value must be an integer: {output['value']}")
+                    
                     script_pubkey = CScript(address_to_scriptpubkey(output['address']))
                     txouts.append(CMutableTxOut(output['value'], script_pubkey))
                 except ValueError as e:
                     logging.error(f"Error building transaction output: {e}")
-                    raise ValueError(f"Invalid Bitcoin address: {output['address']}")
+                    raise ValueError(f"Invalid Bitcoin address or value: {output['address']}")
 
         logging.debug(f"Built transaction: txins: {txins}, txouts: {txouts}")
         return CMutableTransaction(txins, txouts)
+
 
     def sign_transaction(self, unsigned_tx, master_password, unspents, path=''):
         logging.debug(f"Signing transaction with master_password: {master_password} and unspents: {unspents}")
