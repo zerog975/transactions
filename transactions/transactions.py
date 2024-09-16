@@ -7,8 +7,9 @@ import hashlib
 from bitcoinrpc.authproxy import AuthServiceProxy
 
 # Importing necessary modules from python-bitcoinlib
+import bitcoin
 from bitcoin.core import (
-    CMutableTransaction, CMutableTxIn, CMutableTxOut, COutPoint, lx, CScript, b2x, SelectParams
+    CMutableTransaction, CMutableTxIn, CMutableTxOut, COutPoint, lx, CScript, b2x
 )
 from bitcoin.wallet import CBitcoinAddress, CBitcoinAddressError, CBitcoinSecret
 from bitcoin.core.script import (
@@ -17,18 +18,8 @@ from bitcoin.core.script import (
 import bitcoin.rpc
 from bitcoin.base58 import decode as b58decode_check
 
-
-from bit import Key
-from bit.network import NetworkAPI
-
 # Importing from pycoin for BIP32 key management
 from pycoin.key.BIP32Node import BIP32Node
-
-# Importing the `bit` library for transaction handling
-from bit.transaction import address_to_scriptpubkey, create_new_transaction
-
-# Import your BitcoinDaemonService
-from .services.daemonservice import BitcoinDaemonService
 
 # Initialize logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -52,9 +43,9 @@ class Transactions(object):
 
         # Select network parameters
         if self.testnet:
-            SelectParams('testnet')
+            bitcoin.SelectParams('testnet')
         else:
-            SelectParams('mainnet')
+            bitcoin.SelectParams('mainnet')
 
         if service not in SERVICES:
             raise Exception(f"Service '{service}' not supported")
@@ -66,6 +57,9 @@ class Transactions(object):
         self._min_tx_fee = self._service._min_transaction_fee
         self._dust = self._service._min_dust
         logging.debug(f"Transaction fee: {self._min_tx_fee}, Dust threshold: {self._dust}")
+
+   
+
 
     def push(self, tx):
         self._service.push_tx(tx)
