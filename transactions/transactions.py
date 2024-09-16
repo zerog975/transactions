@@ -166,9 +166,8 @@ class Transactions(object):
         if isinstance(master_password, bytes):
             master_password = master_password.decode('utf-8')
 
-        SelectParams('testnet' if self.testnet else 'mainnet')
-
         try:
+            # Use the netcode based on whether testnet or mainnet is set in the daemon
             netcode = 'XTN' if self.testnet else 'BTC'
             bip32_node = BIP32Node.from_master_secret(master_password.encode('utf-8'), netcode=netcode)
             private_key_wif = bip32_node.subkey_for_path(path).wif() if path else bip32_node.wif()
@@ -186,6 +185,7 @@ class Transactions(object):
 
         except Exception as e:
             raise ValueError(f"Failed to sign transaction: {e}")
+
 
     def _select_inputs(self, address, amount, n_outputs=2, min_confirmations=6):
         """
