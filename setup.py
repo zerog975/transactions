@@ -36,7 +36,7 @@ with open('README.rst') as readme:
 
 
 install_requires = [
-    'bitcoin>=1.1.42',
+#    'bitcoin>=1.1.42',
     'future>=0.15.2',
     'pycoin>=0.62',
     'requests>=2.9.1',
