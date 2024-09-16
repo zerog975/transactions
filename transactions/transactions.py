@@ -198,10 +198,11 @@ class Transactions(object):
                     script_pubkey[-1] == OP_CHECKSIG):
                     
                     pubkey_hash = script_pubkey[2]
-                    address = CBitcoinAddress.from_scriptPubKey(script_pubkey)
+                    address = BIP32Node.hash160_sec_to_address(pubkey_hash, netcode='XTN' if self.testnet else 'BTC')
                     return str(address)
                 else:
                     raise ValueError(f"Unsupported script type: {script_pubkey}")
+
 
             # Prepare inputs and outputs in the format expected by the bit library
             inputs = [(unspent['txid'], unspent['vout'], unspent['scriptPubKey'], unspent['amount']) for unspent in unspents]
