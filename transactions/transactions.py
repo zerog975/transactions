@@ -12,6 +12,8 @@ from bitcoin.core.script import SignatureHash, SIGHASH_ALL
 import bitcoin.rpc
 from bitcoin.base58 import decode as b58decode_check
 
+from bit import Key
+
 # Set network parameters (testnet/mainnet)
 #from bitcoin.core import SelectParams
 #SelectParams('testnet')  # Use 'mainnet' if needed
@@ -20,7 +22,7 @@ from bitcoin.base58 import decode as b58decode_check
 from pycoin.key.BIP32Node import BIP32Node
 
 # Importing the `bit` library for transaction handling
-from bit.transaction import address_to_scriptpubkey
+from bit.transaction import address_to_scriptpubkey, create_new_transaction, sign_transaction
 
 # Import your BitcoinDaemonService
 from .services.daemonservice import BitcoinDaemonService
@@ -162,9 +164,11 @@ class Transactions(object):
 
 
 
+
+
     def sign_transaction(self, unsigned_tx, master_password, unspents, path=''):
         """
-        Signs the transaction with the derived private key.
+        Signs the transaction with the derived private key using the bit library.
         """
         if isinstance(master_password, bytes):
             master_password = master_password.decode('utf-8')
@@ -175,25 +179,22 @@ class Transactions(object):
             bip32_node = BIP32Node.from_master_secret(master_password.encode('utf-8'), netcode=netcode)
             private_key_wif = bip32_node.subkey_for_path(path).wif() if path else bip32_node.wif()
 
-            # Manually decode the WIF to obtain the private key bytes
-            decoded_key = b58decode_check(private_key_wif)
+            # Create a Key object using the bit library
+            private_key = Key(private_key_wif)
 
-            # Define the prefixes manually for testnet and mainnet
-            secret_prefix = b'\xef' if self.testnet else b'\x80'  # Testnet starts with \xef, mainnet with \x80
-            private_key = CBitcoinSecret.from_secret_bytes(decoded_key[1:-1], compressed=True)  # compressed=True if needed
+            # Prepare inputs and outputs in the format expected by the bit library
+            inputs = [(unspent['txid'], unspent['vout'], unspent['scriptPubKey'], unspent['amount']) for unspent in unspents]
+            outputs = [{'address': txout['address'], 'value': txout['value']} for txout in unsigned_tx.vout]
 
-            for txin, unspent in zip(unsigned_tx.vin, unspents):
-                if 'scriptPubKey' not in unspent or not unspent['scriptPubKey']:
-                    unspent['scriptPubKey'] = self.fetch_scriptpubkey(unspent['txid'], unspent['vout'])
+            # Create and sign the transaction using the bit library
+            tx_hex = create_new_transaction(inputs, outputs)
+            signed_tx = sign_transaction(tx_hex, wifs=[private_key_wif])
 
-                sighash = SignatureHash(unspent['scriptPubKey'], unsigned_tx, txin.prevout.n, SIGHASH_ALL)
-                sig = private_key.sign(sighash) + bytes([SIGHASH_ALL])
-                txin.scriptSig = CScript([sig, private_key.pub])
-
-            return b2x(unsigned_tx.serialize())
+            return signed_tx
 
         except Exception as e:
-            raise ValueError(f"Failed to sign transaction: {e}")
+            raise ValueError(f"Failed to sign transaction using bit library: {e}")
+
 
 
 
