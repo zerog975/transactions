@@ -210,17 +210,26 @@ class Transactions(object):
         txouts = []
         for output in outputs:
             if 'script' in output:
-                # OP_RETURN output
-                txout = CMutableTxOut(output['value'], CScript(bytes.fromhex(output['script'])))
+                # Handle both hex string and CScript
+                if isinstance(output['script'], str):
+                    script = CScript(bytes.fromhex(output['script']))
+                elif isinstance(output['script'], CScript):
+                    script = output['script']
+                else:
+                    raise TypeError("output['script'] must be a hex string or CScript object")
+                txout = CMutableTxOut(output['value'], script)
             else:
                 # Standard P2PKH output
-                txout = CMutableTxOut(output['value'], CScript([OP_DUP, OP_HASH160, b58decode_check(output['address']), OP_EQUALVERIFY, OP_CHECKSIG]))
+                txout = CMutableTxOut(output['value'], CScript([
+                    OP_DUP, OP_HASH160, b58decode_check(output['address']),
+                    OP_EQUALVERIFY, OP_CHECKSIG
+                ]))
             txouts.append(txout)
 
-        # Create the transaction
-        tx = CMutableTransaction(txins, txouts)
-        logging.debug(f"Built transaction: {b2x(tx.serialize())}")
-        return tx
+    # Create the transaction
+    tx = CMutableTransaction(txins, txouts)
+    logging.debug(f"Built transaction: {b2x(tx.serialize())}")
+    return tx
 
 # Main execution
 if __name__ == "__main__":
