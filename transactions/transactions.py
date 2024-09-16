@@ -11,6 +11,7 @@ from bitcoin.wallet import CBitcoinAddress, CBitcoinAddressError, CBitcoinSecret
 from bitcoin.core.script import OP_DUP, OP_HASH160, OP_EQUALVERIFY, OP_CHECKSIG
 import bitcoin.rpc
 from bitcoin.base58 import decode as b58decode_check
+import hashlib
 
 from bit import Key
 from bit.network import NetworkAPI
@@ -198,7 +199,21 @@ class Transactions(object):
                     script_pubkey[-1] == OP_CHECKSIG):
                     
                     pubkey_hash = script_pubkey[2]
-                    address = BIP32Node.hash160_sec_to_address(pubkey_hash, netcode='XTN' if self.testnet else 'BTC')
+                    
+                    # Add the appropriate prefix for testnet or mainnet
+                    prefix = b'\x6f' if self.testnet else b'\x00'
+                    
+                    # Prepend the prefix to the pubkey_hash
+                    pubkey_hash_with_prefix = prefix + pubkey_hash
+                    
+                    # Perform a double SHA-256 hash on the prefixed pubkey_hash
+                    checksum = hashlib.sha256(hashlib.sha256(pubkey_hash_with_prefix).digest()).digest()[:4]
+                    
+                    # Append the first four bytes of the checksum to the prefixed pubkey_hash
+                    binary_address = pubkey_hash_with_prefix + checksum
+                    
+                    # Convert the binary address to a base58 address
+                    address = b2x(binary_address)  # You might need a proper base58 encoder here
                     return str(address)
                 else:
                     raise ValueError(f"Unsupported script type: {script_pubkey}")
