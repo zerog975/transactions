@@ -57,7 +57,7 @@ class Transactions(object):
             wallet_filename (str): The wallet filename to use with bitcoin daemon.
         """
         self.testnet = testnet
-
+        self.netcode = 'XTN' if testnet else 'BTC'  # Set network based on testnet flag
         # Validate the service
         if service not in SERVICES:
             raise Exception(f"Service '{service}' not supported")
