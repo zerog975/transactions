@@ -177,7 +177,10 @@ class Transactions(object):
 
             # Manually decode the WIF to obtain the private key bytes
             decoded_key = b58decode_check(private_key_wif)
-            private_key = CBitcoinSecret.from_secret_bytes(decoded_key[1:-1])  # Skip prefix and checksum
+
+            # Define the prefixes manually for testnet and mainnet
+            secret_prefix = b'\xef' if self.testnet else b'\x80'  # Testnet starts with \xef, mainnet with \x80
+            private_key = CBitcoinSecret.from_secret_bytes(decoded_key[1:-1], compressed=True)  # compressed=True if needed
 
             for txin, unspent in zip(unsigned_tx.vin, unspents):
                 if 'scriptPubKey' not in unspent or not unspent['scriptPubKey']:
