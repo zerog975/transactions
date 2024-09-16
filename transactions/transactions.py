@@ -188,9 +188,15 @@ class Transactions(object):
                     # Fetch scriptPubKey if not present
                     unspent['scriptPubKey'] = self.fetch_scriptpubkey(unspent['txid'], unspent['vout'])
 
+            # Helper function to extract the address from a txout
+            def txout_to_address(txout):
+                script_pubkey = txout.scriptPubKey
+                address = NetworkAPI.script_to_address(script_pubkey)
+                return address
+
             # Prepare inputs and outputs in the format expected by the bit library
             inputs = [(unspent['txid'], unspent['vout'], unspent['scriptPubKey'], unspent['amount']) for unspent in unspents]
-            outputs = [{'address': txout['address'], 'value': txout['value']} for txout in unsigned_tx.vout]
+            outputs = [{'address': txout_to_address(txout), 'value': txout.nValue} for txout in unsigned_tx.vout]
 
             # Create a new unsigned transaction
             tx_hex = create_new_transaction(inputs, outputs)
@@ -202,6 +208,7 @@ class Transactions(object):
 
         except Exception as e:
             raise ValueError(f"Failed to sign transaction using bit library: {e}")
+
 
 
 
