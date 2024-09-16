@@ -22,7 +22,7 @@ from bit import Key
 from pycoin.key.BIP32Node import BIP32Node
 
 # Importing the `bit` library for transaction handling
-from bit.transaction import address_to_scriptpubkey, create_new_transaction, sign_transaction
+from bit.transaction import address_to_scriptpubkey, create_new_transaction, create_new_transaction
 
 # Import your BitcoinDaemonService
 from .services.daemonservice import BitcoinDaemonService
@@ -186,9 +186,11 @@ class Transactions(object):
             inputs = [(unspent['txid'], unspent['vout'], unspent['scriptPubKey'], unspent['amount']) for unspent in unspents]
             outputs = [{'address': txout['address'], 'value': txout['value']} for txout in unsigned_tx.vout]
 
-            # Create and sign the transaction using the bit library
+            # Create a new unsigned transaction
             tx_hex = create_new_transaction(inputs, outputs)
-            signed_tx = sign_transaction(tx_hex, wifs=[private_key_wif])
+
+            # Sign the transaction using the private key's sign_transaction method
+            signed_tx = private_key.sign_transaction(tx_hex)
 
             return signed_tx
 
