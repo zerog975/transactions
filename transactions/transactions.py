@@ -217,6 +217,10 @@ class Transactions(object):
             inputs = [(unspent['txid'], unspent['vout'], unspent['scriptPubKey'], unspent['amount']) for unspent in unspents]
             outputs = [{'address': txout_to_address(txout), 'value': txout.nValue} for txout in unsigned_tx.vout]
 
+            # Ensure that inputs and outputs are correctly structured
+            if not outputs or not inputs:
+                raise ValueError("No valid inputs or outputs found")
+
             # Create a new unsigned transaction
             tx_hex = create_new_transaction(inputs, outputs)
 
@@ -227,6 +231,7 @@ class Transactions(object):
 
         except Exception as e:
             raise ValueError(f"Failed to sign transaction using bit library: {e}")
+
 
 
 
