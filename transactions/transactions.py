@@ -13,6 +13,7 @@ import bitcoin.rpc
 from bitcoin.base58 import decode as b58decode_check
 
 from bit import Key
+from bit.network import NetworkAPI
 
 # Set network parameters (testnet/mainnet)
 #from bitcoin.core import SelectParams
