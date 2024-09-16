@@ -6,8 +6,8 @@ import logging
 from bitcoinrpc.authproxy import AuthServiceProxy
 
 # Importing necessary modules from python-bitcoinlib
-from bitcoin.core import CMutableTransaction, CMutableTxIn, CMutableTxOut, COutPoint, lx, CScript, b2x
-from bitcoin.wallet import CBitcoinAddress, CBitcoinAddressError, CBitcoinSecret
+from bitcoin.core import CMutableTransaction, CMutableTxIn, CMutableTxOut, COutPoint, lx, CScript, b2x, Hash160
+from bitcoin.wallet import CBitcoinAddress, CBitcoinAddressError, CBitcoinSecret, P2PKHBitcoinAddress
 from bitcoin.core.script import OP_RETURN, OP_DUP, OP_HASH160, OP_EQUALVERIFY, OP_CHECKSIG, CScript
 import bitcoin.rpc
 from bitcoin.base58 import decode as b58decode_check
@@ -137,62 +137,27 @@ class Transactions(object):
             netcode = 'XTN' if self.testnet else 'BTC'
             bip32_node = BIP32Node.from_master_secret(master_password.encode('utf-8'), netcode=netcode)
             private_key_wif = bip32_node.subkey_for_path(path).wif() if path else bip32_node.wif()
-            private_key = Key(private_key_wif)
+            priv_key = CBitcoinSecret(private_key_wif)
+            pub_key = priv_key.pub
             
             # Ensure each unspent has 'scriptPubKey'
             for unspent in unspents:
                 if 'scriptPubKey' not in unspent or not unspent['scriptPubKey']:
                     unspent['scriptPubKey'] = self.fetch_scriptpubkey(unspent['txid'], unspent['vout'])
 
-            # Helper function to extract the address from txout
-            def txout_to_address(txout):
-                script_pubkey = txout.scriptPubKey
-                if isinstance(script_pubkey, str):
-                    script_pubkey = CScript(bytes.fromhex(script_pubkey))
+            # Sign each input
+            for i, txin in enumerate(unsigned_tx.vin):
+                unspent = unspents[i]
+                txin_scriptPubKey = CScript(bytes.fromhex(unspent['scriptPubKey']))
+                sighash = SignatureHash(txin_scriptPubKey, unsigned_tx, i, SIGHASH_ALL)
+                sig = priv_key.sign(sighash) + bytes([SIGHASH_ALL])
+                txin.scriptSig = CScript([sig, pub_key])
 
-                # Handle P2PKH scripts
-                if (script_pubkey[0] == OP_DUP and script_pubkey[1] == OP_HASH160 and
-                        script_pubkey[-2] == OP_EQUALVERIFY and script_pubkey[-1] == OP_CHECKSIG):
-                    
-                    pubkey_hash = script_pubkey[2]
+            # Serialize signed transaction
+            signed_tx_hex = unsigned_tx.serialize().hex()
+            logging.debug(f"Signed transaction: {signed_tx_hex}")
 
-                    # Ensure pubkey_hash is converted to bytes if it's an integer
-                    if isinstance(pubkey_hash, int):
-                        pubkey_hash = pubkey_hash.to_bytes(20, 'big')  # 20-byte hash
-
-                    prefix = b'\x6f' if self.testnet else b'\x00'
-                    pubkey_hash_with_prefix = prefix + pubkey_hash
-
-                    # Calculate checksum
-                    checksum = hashlib.sha256(hashlib.sha256(pubkey_hash_with_prefix).digest()).digest()[:4]
-                    binary_address = pubkey_hash_with_prefix + checksum
-                    address = b2x(binary_address)
-                    return str(address)
-                
-                # Handle OP_RETURN scripts
-                elif script_pubkey[0] == OP_RETURN:
-                    return "OP_RETURN"
-                
-                # Raise error for unsupported script types
-                else:
-                    raise ValueError(f"Unsupported script type: {script_pubkey}")
-
-            # Prepare inputs and outputs
-            inputs = [(unspent['txid'], unspent['vout'], unspent['scriptPubKey'], unspent['amount']) for unspent in unspents]
-            outputs = [{'address': txout_to_address(txout), 'value': txout.nValue} for txout in unsigned_tx.vout]
-
-            # Check if inputs and outputs are valid
-            if not outputs or not inputs:
-                raise ValueError("No valid inputs or outputs found")
-
-            # Create unsigned transaction
-            tx_hex = create_new_transaction(inputs, outputs)
-
-            # Sign the transaction
-            signed_tx = private_key.sign_transaction(tx_hex)
-            logging.debug(f"Signed transaction: {signed_tx}")
-
-            return signed_tx
+            return signed_tx_hex
 
         except Exception as e:
             logging.error(f"Failed to sign transaction: {e}")
