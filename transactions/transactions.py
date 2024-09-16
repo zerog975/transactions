@@ -5,6 +5,8 @@ import codecs
 import logging
 import hashlib
 from bitcoinrpc.authproxy import AuthServiceProxy
+# Assuming BitcoinDaemonService is located in .services.daemonservice
+from .services.daemonservice import BitcoinDaemonService
 
 # Importing necessary modules from python-bitcoinlib
 import bitcoin
