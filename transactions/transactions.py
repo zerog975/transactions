@@ -8,7 +8,7 @@ from bitcoinrpc.authproxy import AuthServiceProxy
 # Importing necessary modules from python-bitcoinlib
 from bitcoin.core import CMutableTransaction, CMutableTxIn, CMutableTxOut, COutPoint, lx, CScript, b2x, Hash160
 from bitcoin.wallet import CBitcoinAddress, CBitcoinAddressError, CBitcoinSecret, P2PKHBitcoinAddress
-from bitcoin.core.script import OP_RETURN, OP_DUP, OP_HASH160, OP_EQUALVERIFY, OP_CHECKSIG, CScript, SignatureHash, SIGHASH_ALL
+from bitcoin.core.script import OP_RETURN, OP_DUP, OP_HASH160, OP_EQUALVERIFY, OP_CHECKSIG, SignatureHash, SIGHASH_ALL
 import bitcoin.rpc
 from bitcoin.base58 import decode as b58decode_check
 import hashlib
@@ -113,7 +113,7 @@ class Transactions(object):
 
         for output in outputs:
             if 'script' in output:
-                txouts.append(CMutableTxOut(output['value'], output['script']))
+                txouts.append(CMutableTxOut(output['value'], bytes.fromhex(output['script'])))
             else:
                 try:
                     script_pubkey = CScript(address_to_scriptpubkey(output['address']))
@@ -137,7 +137,7 @@ class Transactions(object):
             netcode = 'XTN' if self.testnet else 'BTC'
             bip32_node = BIP32Node.from_master_secret(master_password.encode('utf-8'), netcode=netcode)
             private_key_wif = bip32_node.subkey_for_path(path).wif() if path else bip32_node.wif()
-
+            
             # Check if we're on testnet and handle the private key accordingly
             if self.testnet:
                 priv_key = CBitcoinSecret.from_secret_bytes(b58decode_check(private_key_wif)[1:])
@@ -145,16 +145,19 @@ class Transactions(object):
                 priv_key = CBitcoinSecret(private_key_wif)
             
             pub_key = priv_key.pub
-
+            
             # Ensure each unspent has 'scriptPubKey'
             for unspent in unspents:
                 if 'scriptPubKey' not in unspent or not unspent['scriptPubKey']:
                     unspent['scriptPubKey'] = self.fetch_scriptpubkey(unspent['txid'], unspent['vout'])
+                else:
+                    if isinstance(unspent['scriptPubKey'], str):
+                        unspent['scriptPubKey'] = bytes.fromhex(unspent['scriptPubKey'])
 
             # Sign each input
             for i, txin in enumerate(unsigned_tx.vin):
                 unspent = unspents[i]
-                txin_scriptPubKey = CScript(bytes.fromhex(unspent['scriptPubKey']))
+                txin_scriptPubKey = CScript(unspent['scriptPubKey'])
                 sighash = SignatureHash(txin_scriptPubKey, unsigned_tx, i, SIGHASH_ALL)
                 sig = priv_key.sign(sighash) + bytes([SIGHASH_ALL])
                 txin.scriptSig = CScript([sig, pub_key])
@@ -168,8 +171,6 @@ class Transactions(object):
         except Exception as e:
             logging.error(f"Failed to sign transaction: {e}")
             raise ValueError(f"Failed to sign transaction: {e}")
-
-
 
     def _select_inputs(self, address, amount, n_outputs=2, min_confirmations=6):
         unspents = self.get(address, min_confirmations=min_confirmations)['unspents']
@@ -201,7 +202,7 @@ class Transactions(object):
     def fetch_scriptpubkey(self, txid, vout):
         response = self._service.rpc_connection.gettxout(txid, vout)
         if response and 'scriptPubKey' in response:
-            return response['scriptPubKey']['hex']
+            return bytes.fromhex(response['scriptPubKey']['hex'])
         else:
             raise ValueError(f"Failed to retrieve scriptPubKey for {txid}:{vout}")
 
@@ -216,4 +217,3 @@ if __name__ == "__main__":
 
     hex_tx = transactions.build_transaction(inputs, outputs)
     logging.info(f"Serialized transaction: {hex_tx}")
-
