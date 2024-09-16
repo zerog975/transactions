@@ -8,7 +8,7 @@ from bitcoinrpc.authproxy import AuthServiceProxy
 # Importing necessary modules from python-bitcoinlib
 from bitcoin.core import CMutableTransaction, CMutableTxIn, CMutableTxOut, COutPoint, lx, CScript, b2x, Hash160
 from bitcoin.wallet import CBitcoinAddress, CBitcoinAddressError, CBitcoinSecret, P2PKHBitcoinAddress
-from bitcoin.core.script import OP_RETURN, OP_DUP, OP_HASH160, OP_EQUALVERIFY, OP_CHECKSIG, CScript
+from bitcoin.core.script import OP_RETURN, OP_DUP, OP_HASH160, OP_EQUALVERIFY, OP_CHECKSIG, CScript, SignatureHash, SIGHASH_ALL
 import bitcoin.rpc
 from bitcoin.base58 import decode as b58decode_check
 import hashlib
