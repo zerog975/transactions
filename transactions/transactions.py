@@ -226,11 +226,13 @@ class Transactions(object):
                 ]))
             txouts.append(txout)
 
-    # Create the transaction
-    tx = CMutableTransaction(txins, txouts)
-    logging.debug(f"Built transaction: {b2x(tx.serialize())}")
-    return tx
+        # Create the transaction
+        tx = CMutableTransaction(txins, txouts)
+        logging.debug(f"Built transaction: {b2x(tx.serialize())}")
+        return tx
+    
 
+    
 # Main execution
 if __name__ == "__main__":
     transactions = Transactions(service='daemon', testnet=True, username='bitcoinrpcuser1337',
