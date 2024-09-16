@@ -6,10 +6,11 @@ import logging
 from bitcoinrpc.authproxy import AuthServiceProxy
 
 # Importing necessary modules from python-bitcoinlib
-from bitcoin.core import CMutableTransaction, CMutableTxIn, CMutableTxOut, COutPoint, lx, CScript, b2x
+from bitcoin.core import CMutableTransaction, CMutableTxIn, CMutableTxOut, COutPoint, lx, CScript, b2x, Key
 from bitcoin.wallet import CBitcoinAddress, CBitcoinAddressError, CBitcoinSecret
 from bitcoin.core.script import SignatureHash, SIGHASH_ALL
 import bitcoin.rpc
+from bitcoin.base58 import decode as b58decode_check
 
 # Set network parameters (testnet/mainnet)
 #from bitcoin.core import SelectParams
@@ -159,6 +160,8 @@ class Transactions(object):
 
         return CMutableTransaction(txins, txouts)
 
+
+
     def sign_transaction(self, unsigned_tx, master_password, unspents, path=''):
         """
         Signs the transaction with the derived private key.
@@ -171,7 +174,9 @@ class Transactions(object):
             netcode = 'XTN' if self.testnet else 'BTC'
             bip32_node = BIP32Node.from_master_secret(master_password.encode('utf-8'), netcode=netcode)
             private_key_wif = bip32_node.subkey_for_path(path).wif() if path else bip32_node.wif()
-            private_key = CBitcoinSecret(private_key_wif)
+
+            # Decode WIF manually without using CBitcoinSecret
+            private_key = Key(b58decode_check(private_key_wif)[1:-1])
 
             for txin, unspent in zip(unsigned_tx.vin, unspents):
                 if 'scriptPubKey' not in unspent or not unspent['scriptPubKey']:
@@ -185,6 +190,7 @@ class Transactions(object):
 
         except Exception as e:
             raise ValueError(f"Failed to sign transaction: {e}")
+
 
 
     def _select_inputs(self, address, amount, n_outputs=2, min_confirmations=6):
