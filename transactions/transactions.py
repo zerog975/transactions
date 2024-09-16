@@ -8,10 +8,11 @@ from bitcoinrpc.authproxy import AuthServiceProxy
 # Importing necessary modules from python-bitcoinlib
 from bitcoin.core import CMutableTransaction, CMutableTxIn, CMutableTxOut, COutPoint, lx, CScript, b2x
 from bitcoin.wallet import CBitcoinAddress, CBitcoinAddressError, CBitcoinSecret
-from bitcoin.core.script import OP_RETURN, OP_DUP, OP_HASH160, OP_EQUALVERIFY, OP_CHECKSIG
+from bitcoin.core.script import OP_RETURN, OP_DUP, OP_HASH160, OP_EQUALVERIFY, OP_CHECKSIG, CScript
 import bitcoin.rpc
 from bitcoin.base58 import decode as b58decode_check
 import hashlib
+
 
 from bit import Key
 from bit.network import NetworkAPI
@@ -191,8 +192,14 @@ class Transactions(object):
                     unspent['scriptPubKey'] = self.fetch_scriptpubkey(unspent['txid'], unspent['vout'])
 
             # Helper function to extract the address from a txout
+   
+
             def txout_to_address(txout):
                 script_pubkey = txout.scriptPubKey
+
+                # Convert the scriptPubKey to CScript if it's in hex format
+                if isinstance(script_pubkey, str):
+                    script_pubkey = CScript(bytes.fromhex(script_pubkey))
 
                 # Handle P2PKH (Pay-to-PubKey-Hash) scripts
                 if (script_pubkey[0] == OP_DUP and
@@ -220,7 +227,7 @@ class Transactions(object):
                     binary_address = pubkey_hash_with_prefix + checksum
 
                     # Convert the binary address to a base58 address
-                    address = b2x(binary_address)  # You might need a proper base58 encoder here
+                    address = b2x(binary_address)
                     return str(address)
 
                 # Handle OP_RETURN scripts (embedded data, no address)
@@ -230,6 +237,7 @@ class Transactions(object):
                 # Raise an exception for unsupported script types
                 else:
                     raise ValueError(f"Unsupported script type: {script_pubkey}")
+
 
 
             # Prepare inputs and outputs in the format expected by the bit library
