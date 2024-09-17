@@ -14,6 +14,9 @@ from bitcoin.core.script import SignatureHash, SIGHASH_ALL
 from bitcoin.core.scripteval import VerifyScript, SCRIPT_VERIFY_P2SH
 from bitcoin.rpc import Proxy
 
+# Use python-bitcoinrpc's AuthServiceProxy instead
+from bitcoinrpc.authproxy import AuthServiceProxy, JSONRPCException
+
 # Initialize logging
 logging.basicConfig(level=logging.DEBUG)
 
@@ -94,7 +97,7 @@ class Transactions(object):
                 # Filter for the specific address
                 filtered = [r for r in received if r.get('address') == identifier]
                 logging.debug(f"Retrieved {len(filtered)} received transactions for address '{identifier}'.")
-                
+
                 unspents = self._service.list_unspents(address=identifier, min_confirmations=min_confirmations)
                 return {'transactions': filtered, 'unspents': unspents}
             except Exception as e:
@@ -413,9 +416,9 @@ class BitcoinDaemonService:
             service_url = f'http://{self.username}:{self.password}@{self.host}:{self.port}/wallet/{self.wallet_filename}'
         else:
             service_url = f'http://{self.username}:{self.password}@{self.host}:{self.port}'
-        
+
         try:
-            self.rpc = Proxy(service_url=service_url)
+            self.rpc = AuthServiceProxy(service_url=service_url, timeout=120)
             logging.debug(f"Initialized RPC Proxy with URL: {service_url}")
         except Exception as e:
             logging.error(f"Failed to initialize RPC Proxy: {e}")
@@ -440,6 +443,9 @@ class BitcoinDaemonService:
             txid = self.rpc.sendrawtransaction(raw_tx)
             logging.debug(f"Broadcasted transaction {txid}.")
             return txid
+        except JSONRPCException as e:
+            logging.error(f"RPC error broadcasting transaction: {e.error['message']}")
+            raise e
         except Exception as e:
             logging.error(f"Error broadcasting transaction: {e}")
             raise e
@@ -463,6 +469,9 @@ class BitcoinDaemonService:
                 return raw_tx
             logging.debug(f"Retrieved transaction details for {txid}: {tx}")
             return tx
+        except JSONRPCException as e:
+            logging.error(f"RPC error retrieving transaction {txid}: {e.error['message']}")
+            raise e
         except Exception as e:
             logging.error(f"Error retrieving transaction {txid}: {e}")
             raise e
@@ -482,6 +491,9 @@ class BitcoinDaemonService:
             transactions = self.rpc.listtransactions(account, max_transactions)
             logging.debug(f"Retrieved {len(transactions)} transactions for account '{account}'.")
             return transactions
+        except JSONRPCException as e:
+            logging.error(f"RPC error listing transactions for account '{account}': {e.error['message']}")
+            raise e
         except Exception as e:
             logging.error(f"Error listing transactions for account '{account}': {e}")
             raise e
@@ -498,9 +510,13 @@ class BitcoinDaemonService:
             list: List of received transactions.
         """
         try:
+            # The third parameter is include_watchonly; set to False
             received = self.rpc.listreceivedbyaddress(minconf, include_empty, False)
             logging.debug(f"Retrieved {len(received)} received transactions.")
             return received
+        except JSONRPCException as e:
+            logging.error(f"RPC error listing received transactions: {e.error['message']}")
+            raise e
         except Exception as e:
             logging.error(f"Error listing received transactions: {e}")
             raise e
@@ -520,6 +536,9 @@ class BitcoinDaemonService:
             unspents = self.rpc.listunspent(min_confirmations, 9999999, [address])
             logging.debug(f"Retrieved {len(unspents)} unspent outputs for address '{address}'.")
             return unspents
+        except JSONRPCException as e:
+            logging.error(f"RPC error listing unspents for address '{address}': {e.error['message']}")
+            raise e
         except Exception as e:
             logging.error(f"Error listing unspents for address '{address}': {e}")
             raise e
@@ -536,6 +555,9 @@ class BitcoinDaemonService:
         try:
             self.rpc.importaddress(address, account, rescan)
             logging.debug(f"Imported address '{address}' with account '{account}' and rescan={rescan}.")
+        except JSONRPCException as e:
+            logging.error(f"RPC error importing address '{address}': {e.error['message']}")
+            raise e
         except Exception as e:
             logging.error(f"Error importing address '{address}': {e}")
             raise e
@@ -554,6 +576,9 @@ class BitcoinDaemonService:
             decoded = self.rpc.decoderawtransaction(raw_tx)
             logging.debug(f"Decoded transaction: {decoded}")
             return decoded
+        except JSONRPCException as e:
+            logging.error(f"RPC error decoding transaction {raw_tx}: {e.error['message']}")
+            raise e
         except Exception as e:
             logging.error(f"Error decoding transaction {raw_tx}: {e}")
             raise e
@@ -577,6 +602,9 @@ class BitcoinDaemonService:
             raw_block = self.rpc.getblock(block_hash, 0)
             logging.debug(f"Retrieved raw block data for block '{block_hash}'.")
             return raw_block
+        except JSONRPCException as e:
+            logging.error(f"RPC error retrieving raw block data for block '{block}': {e.error['message']}")
+            raise e
         except Exception as e:
             logging.error(f"Error retrieving raw block data for block '{block}': {e}")
             raise e
@@ -600,6 +628,9 @@ class BitcoinDaemonService:
             block_info = self.rpc.getblock(block_hash, 2)
             logging.debug(f"Retrieved block info for block '{block_hash}': {block_info}")
             return block_info
+        except JSONRPCException as e:
+            logging.error(f"RPC error retrieving block info for block '{block}': {e.error['message']}")
+            raise e
         except Exception as e:
             logging.error(f"Error retrieving block info for block '{block}': {e}")
             raise e
