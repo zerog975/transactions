@@ -231,6 +231,9 @@ class BitcoinDaemonService:
         try:
             raw_tx = self.get_raw_transaction(txid)
             return [vout['scriptPubKey']['addresses'][0] for vout in raw_tx['vout'] if vout['n'] == vout_n][0]
+        except IndexError:
+            # No address found for this vout
+            return ''
         except Exception as e:
             if isinstance(e, IndexError):
                 # No address found for this vout
@@ -242,6 +245,9 @@ class BitcoinDaemonService:
         try:
             raw_tx = self.get_raw_transaction(txid)
             return [vout['value'] for vout in raw_tx['vout'] if vout['n'] == vout_n][0]
+        except IndexError:
+            # No value found for this vout
+            return 0
         except Exception as e:
             if isinstance(e, IndexError):
                 # No value found for this vout
@@ -284,12 +290,12 @@ class BitcoinDaemonService:
         })
         return result
 
-    def get(self, identifier, account="*", max_transactions=100, min_confirmations=6, raw=False):
+    def get(self, hash_value, account="*", max_transactions=100, min_confirmations=6, raw=False):
         """
         Retrieve transactions or a specific transaction based on the identifier.
 
         Args:
-            identifier (str): Bitcoin address or transaction ID.
+            hash_value (str): Bitcoin address or transaction ID.
             account (Optional[str]): Account name for RPC calls.
             max_transactions (int): Maximum number of transactions to retrieve.
             min_confirmations (int): Minimum number of confirmations for UTXOs.
@@ -298,14 +304,14 @@ class BitcoinDaemonService:
         Returns:
             dict or str: Transaction details or raw transaction hex.
         """
-        logging.debug(f"get method called with identifier={identifier}, account={account}, max_transactions={max_transactions}, min_confirmations={min_confirmations}, raw={raw}")
+        logging.debug(f"get method called with hash_value={hash_value}, account={account}, max_transactions={max_transactions}, min_confirmations={min_confirmations}, raw={raw}")
         
-        if len(identifier) < 64:  # Likely a Bitcoin address
-            transactions = self.list_transactions(identifier, account=account, max_transactions=max_transactions)
-            unspents = self.list_unspents(identifier, min_confirmations=min_confirmations)
+        if len(hash_value) < 64:  # Likely a Bitcoin address
+            transactions = self.list_transactions(hash_value, account=account, max_transactions=max_transactions)
+            unspents = self.list_unspents(hash_value, min_confirmations=min_confirmations)
             return {'transactions': transactions, 'unspents': unspents}
         else:  # Likely a transaction ID
-            transaction = self.get_transaction(identifier, raw=raw)
+            transaction = self.get_transaction(hash_value, raw=raw)
             if raw:
                 return transaction
             else:
