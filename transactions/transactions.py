@@ -10,7 +10,6 @@ from bitcoin.core import CMutableTransaction, CMutableTxIn, CMutableTxOut, COutP
 from bitcoin.wallet import (
     CBitcoinAddress,
     P2PKHBitcoinAddress,
-    TestNetP2PKHBitcoinAddress,
     CBitcoinAddressError
 )
 from pycoin.key.BIP32Node import BIP32Node
