@@ -90,9 +90,13 @@ class Transactions(object):
         if len(identifier) < 64:
             # Assume it's a Bitcoin address
             try:
-                txs = self._service.list_received_by_address(address=identifier, minconf=min_confirmations)
+                received = self._service.list_received_by_address(minconf=min_confirmations, include_empty=False)
+                # Filter for the specific address
+                filtered = [r for r in received if r.get('address') == identifier]
+                logging.debug(f"Retrieved {len(filtered)} received transactions for address '{identifier}'.")
+                
                 unspents = self._service.list_unspents(address=identifier, min_confirmations=min_confirmations)
-                return {'transactions': txs, 'unspents': unspents}
+                return {'transactions': filtered, 'unspents': unspents}
             except Exception as e:
                 logging.error(f"Error retrieving transactions for address {identifier}: {e}")
                 raise
@@ -406,9 +410,16 @@ class BitcoinDaemonService:
 
         # Initialize the RPC connection
         if self.wallet_filename:
-            self.rpc = Proxy(service_url=f'http://{self.username}:{self.password}@{self.host}:{self.port}/wallet/{self.wallet_filename}')
+            service_url = f'http://{self.username}:{self.password}@{self.host}:{self.port}/wallet/{self.wallet_filename}'
         else:
-            self.rpc = Proxy(service_url=f'http://{self.username}:{self.password}@{self.host}:{self.port}')
+            service_url = f'http://{self.username}:{self.password}@{self.host}:{self.port}'
+        
+        try:
+            self.rpc = Proxy(service_url=service_url)
+            logging.debug(f"Initialized RPC Proxy with URL: {service_url}")
+        except Exception as e:
+            logging.error(f"Failed to initialize RPC Proxy: {e}")
+            raise e
 
         self._min_transaction_fee = 10000  # Satoshi per kB
         self._min_dust = 600  # Satoshi
@@ -475,12 +486,11 @@ class BitcoinDaemonService:
             logging.error(f"Error listing transactions for account '{account}': {e}")
             raise e
 
-    def list_received_by_address(self, address, minconf=1, include_empty=False):
+    def list_received_by_address(self, minconf=1, include_empty=False):
         """
         List received transactions by address.
 
         Args:
-            address (str): Bitcoin address.
             minconf (int): Minimum confirmations.
             include_empty (bool): Include addresses with zero received.
 
@@ -488,11 +498,11 @@ class BitcoinDaemonService:
             list: List of received transactions.
         """
         try:
-            received = self.rpc.listreceivedbyaddress(minconf, include_empty, [address])
-            logging.debug(f"Retrieved {len(received)} received transactions for address '{address}'.")
+            received = self.rpc.listreceivedbyaddress(minconf, include_empty, False)
+            logging.debug(f"Retrieved {len(received)} received transactions.")
             return received
         except Exception as e:
-            logging.error(f"Error listing received transactions for address '{address}': {e}")
+            logging.error(f"Error listing received transactions: {e}")
             raise e
 
     def list_unspents(self, address, min_confirmations=6):
