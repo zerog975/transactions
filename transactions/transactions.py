@@ -10,8 +10,10 @@ from bitcoin.core import CMutableTransaction, CMutableTxIn, CMutableTxOut, COutP
 from bitcoin.wallet import (
     CBitcoinAddress,
     P2PKHBitcoinAddress,
+    TestNetP2PKHBitcoinAddress,
     CBitcoinAddressError
 )
+
 from pycoin.key.BIP32Node import BIP32Node
 from pycoin.encoding import EncodingError
 
@@ -46,6 +48,10 @@ class Transactions(object):
             wallet_filename (str): the name of the wallet to use with the bitcoin daemon
         """
         self.testnet = testnet
+        if self.testnet:
+            bitcoin.SelectParams('testnet')
+        else:
+            bitcoin.SelectParams('mainnet')
 
         if service not in SERVICES:
             raise Exception(f"Service '{service}' not supported")
@@ -98,11 +104,15 @@ class Transactions(object):
             CBitcoinAddressError: If the address is invalid.
         """
         try:
-            CBitcoinAddress(address)
+            if self.testnet:
+                TestNetP2PKHBitcoinAddress.from_string(address)
+            else:
+                P2PKHBitcoinAddress.from_string(address)
             logging.debug(f"Validated address: {address}")
         except CBitcoinAddressError as e:
             logging.error(f"Invalid address {address}: {e}")
             raise e
+
 
     def simple_transaction(self, from_address, to, op_return=None, min_confirmations=6):
         """
@@ -137,20 +147,41 @@ class Transactions(object):
         return self.build_transaction(inputs, outputs)
 
     def build_transaction(self, inputs, outputs):
+        """
+        Build transaction using python-bitcoinlib
+
+        Args:
+            inputs (list): inputs in the form of
+                [{'txid': '...', 'vout': 0, 'amount': 10000}, ...]
+            outputs (list): outputs in the form of
+                [{'address': '...', 'value': 5000}, {'script': CScript([...]), 'value': 0}, ...]
+        Returns:
+            CMutableTransaction: unsigned transaction object
+        """
+        # Create transaction inputs
         txins = [CMutableTxIn(COutPoint(lx(input['txid']), input['vout'])) for input in inputs]
         
+        # Create transaction outputs
         txouts = []
         for output in outputs:
             if 'script' in output:
+                # OP_RETURN output or other custom scripts
                 txouts.append(CMutableTxOut(output['value'], output['script']))
             else:
                 try:
-                    addr = CBitcoinAddress.from_string(output['address'])
+                    if self.testnet:
+                        # Use TestNetP2PKHBitcoinAddress for testnet
+                        addr = TestNetP2PKHBitcoinAddress.from_string(output['address'])
+                    else:
+                        # Use P2PKHBitcoinAddress for mainnet
+                        addr = P2PKHBitcoinAddress.from_string(output['address'])
                     txouts.append(CMutableTxOut(output['value'], addr.to_scriptPubKey()))
                 except CBitcoinAddressError as e:
                     raise ValueError(f"Invalid Bitcoin address: {output['address']}") from e
 
+        # Create the unsigned transaction
         return CMutableTransaction(txins, txouts)
+
 
 
     def sign_transaction(self, tx, master_password, path=''):
@@ -175,6 +206,7 @@ class Transactions(object):
             return bitcoin.signall(tx, master_password)
         except (AttributeError, EncodingError):
             return bitcoin.signall(tx, BIP32Node.from_master_secret(master_password, netcode=netcode).subkey_for_path(path).wif())
+
 
     def _select_inputs(self, address, amount, n_outputs=2, min_confirmations=6):
         """
