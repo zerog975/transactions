@@ -85,7 +85,17 @@ class Transactions(object):
         Returns:
             dict or str: Transaction details or raw transaction hex.
         """
-        return self._service.get(identifier, account, max_transactions, min_confirmations, raw)
+        if len(hash) < 64:
+            txs = self._service.list_transactions(hash, account=account, max_transactions=max_transactions)
+            unspents = self._service.list_unspents(hash, min_confirmations=min_confirmations)
+            return {'transactions': txs, 'unspents': unspents}
+        else:
+            return self._service.get_transaction(hash, raw=raw)
+
+    def import_address(self, address, account="", rescan=False):
+        if isinstance(self._service, BitcoinDaemonService):
+            self._service.import_address(address, account, rescan=rescan)
+    
 
     def import_address(self, address, account="", rescan=False):
         """
