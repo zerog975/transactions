@@ -8,16 +8,18 @@ import os
 # Importing necessary modules from python-bitcoinlib
 from bitcoin.core import CMutableTransaction, CMutableTxIn, CMutableTxOut, COutPoint, lx
 from bitcoin.wallet import (
-    CBitcoinAddress,
     P2PKHBitcoinAddress,
-    TestNetP2PKHBitcoinAddress,
     CBitcoinAddressError
 )
-
 from pycoin.key.BIP32Node import BIP32Node
 from pycoin.encoding import EncodingError
 
 from .services.daemonservice import BitcoinDaemonService
+
+# Additional imports for signing
+from pycoin.tx import Tx
+from pycoin.tx.script import build_hash160_lookup
+from pycoin.key import Key
 
 # Initialize logging
 logging.basicConfig(level=logging.DEBUG)
@@ -39,8 +41,8 @@ class Transactions(object):
     def __init__(self, service='daemon', testnet=True, username='', password='', host='', port='', wallet_filename=''):
         """
         Args:
-            service (str): currently supports _blockr_ for blockr.io and and _daemon_ for bitcoin daemon. Defaults to _blockr_
-            testnet (bool): use True if you want to use tesnet. Defaults to False
+            service (str): currently supports _daemon_ for bitcoin daemon.
+            testnet (bool): use True if you want to use testnet. Defaults to False
             username (str): username to connect to the bitcoin daemon
             password (str): password to connect to the bitcoin daemon
             host (str): host of the bitcoin daemon
@@ -48,9 +50,13 @@ class Transactions(object):
             wallet_filename (str): the name of the wallet to use with the bitcoin daemon
         """
         self.testnet = testnet
+
+        # Select network parameters
         if self.testnet:
+            import bitcoin
             bitcoin.SelectParams('testnet')
         else:
+            import bitcoin
             bitcoin.SelectParams('mainnet')
 
         if service not in SERVICES:
@@ -104,15 +110,11 @@ class Transactions(object):
             CBitcoinAddressError: If the address is invalid.
         """
         try:
-            if self.testnet:
-                TestNetP2PKHBitcoinAddress.from_string(address)
-            else:
-                P2PKHBitcoinAddress.from_string(address)
+            P2PKHBitcoinAddress.from_string(address)
             logging.debug(f"Validated address: {address}")
         except CBitcoinAddressError as e:
             logging.error(f"Invalid address {address}: {e}")
             raise e
-
 
     def simple_transaction(self, from_address, to, op_return=None, min_confirmations=6):
         """
@@ -169,12 +171,8 @@ class Transactions(object):
                 txouts.append(CMutableTxOut(output['value'], output['script']))
             else:
                 try:
-                    if self.testnet:
-                        # Use TestNetP2PKHBitcoinAddress for testnet
-                        addr = TestNetP2PKHBitcoinAddress.from_string(output['address'])
-                    else:
-                        # Use P2PKHBitcoinAddress for mainnet
-                        addr = P2PKHBitcoinAddress.from_string(output['address'])
+                    # Use P2PKHBitcoinAddress for both mainnet and testnet
+                    addr = P2PKHBitcoinAddress.from_string(output['address'])
                     txouts.append(CMutableTxOut(output['value'], addr.to_scriptPubKey()))
                 except CBitcoinAddressError as e:
                     raise ValueError(f"Invalid Bitcoin address: {output['address']}") from e
@@ -182,31 +180,49 @@ class Transactions(object):
         # Create the unsigned transaction
         return CMutableTransaction(txins, txouts)
 
-
-
     def sign_transaction(self, tx, master_password, path=''):
         """
         Args:
-            tx: hex transaction to sign
+            tx: CMutableTransaction object to sign
             master_password: master password for BIP32 wallets. Can be either a
-                master_secret or a wif
+                master_secret or a WIF.
             path (Optional[str]): optional path to the leaf address of the
                 BIP32 wallet. This allows us to retrieve private key for the
                 leaf address if one was used to construct the transaction.
         Returns:
-            signed transaction
-
-        .. note:: Only BIP32 hierarchical deterministic wallets are currently
-            supported.
+            signed transaction (hex string)
         """
         netcode = 'XTN' if self.testnet else 'BTC'
 
         try:
-            BIP32Node.from_text(master_password)
-            return bitcoin.signall(tx, master_password)
-        except (AttributeError, EncodingError):
-            return bitcoin.signall(tx, BIP32Node.from_master_secret(master_password, netcode=netcode).subkey_for_path(path).wif())
+            # Attempt to parse master_password as a BIP32Node
+            bip32_node = BIP32Node.from_text(master_password)
+            priv_key = bip32_node.wif()
+        except EncodingError:
+            try:
+                # Derive from master secret
+                bip32_node = BIP32Node.from_master_secret(master_password, netcode=netcode)
+                priv_key = bip32_node.subkey_for_path(path).wif()
+            except Exception as e:
+                logging.error(f"Failed to derive private key: {e}")
+                raise ValueError(f"Failed to derive private key: {e}") from e
 
+        # Convert WIF to pycoin Key object
+        key = Key.from_text(priv_key)
+        
+        # Create a hash160 lookup for signing
+        hash160_lookup = build_hash160_lookup([key])
+
+        # Convert CMutableTransaction to pycoin Tx object
+        tx_obj = Tx.from_hex(tx.serialize().hex())
+        
+        # Sign each input
+        for i, tx_in in enumerate(tx_obj.txs_in):
+            tx_obj.sign_tx_in(i, hash160_lookup)
+        
+        # Return the signed transaction as hex
+        signed_tx_hex = tx_obj.as_hex()
+        return signed_tx_hex
 
     def _select_inputs(self, address, amount, n_outputs=2, min_confirmations=6):
         """
@@ -225,12 +241,14 @@ class Transactions(object):
         if not unspents:
             raise Exception("No spendable outputs found")
 
-        #unspents are sorted, with the smallest amounts first
+        # unspents are sorted, with the smallest amounts first
         unspents = sorted(unspents, key=lambda d: d['amount'])
         balance, inputs = 0, []
         fee = self._service._min_transaction_fee
 
         while balance < amount + fee:
+            if not unspents:
+                raise Exception("Insufficient funds to cover the amount and fee.")
             unspent = unspents.pop()
             balance += unspent['amount']
             inputs.append(unspent)
@@ -240,11 +258,20 @@ class Transactions(object):
         return inputs, change
 
     def _op_return_hex(self, op_return):
+        """
+        Constructs an OP_RETURN script with the given data.
+
+        Args:
+            op_return (str): Data to embed in OP_RETURN.
+
+        Returns:
+            CScript: OP_RETURN script.
+        """
         try:
-            hex_op_return = codecs.encode(op_return, 'hex')
-        except TypeError:
             hex_op_return = codecs.encode(op_return.encode('utf-8'), 'hex')
-        return "6a%x%s" % (len(op_return), hex_op_return.decode('utf-8'))
+        except AttributeError:
+            hex_op_return = codecs.encode(op_return, 'hex')
+        return CScript([0x6a, int(len(op_return)), bytes.fromhex(hex_op_return.decode('utf-8'))])
 
     def estimate_fee(self, n_inputs, n_outputs):
         """
