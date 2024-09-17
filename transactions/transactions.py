@@ -22,6 +22,7 @@ from bitcoin.base58 import decode as b58decode_check
 
 # Importing from pycoin for BIP32 key management
 from pycoin.key.BIP32Node import BIP32Node
+from pycoin.encoding import EncodingError
 
 # Initialize logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
