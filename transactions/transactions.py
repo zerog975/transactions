@@ -7,7 +7,12 @@ import os
 
 # Importing necessary modules from python-bitcoinlib
 from bitcoin.core import CMutableTransaction, CMutableTxIn, CMutableTxOut, COutPoint, lx
-from bitcoin.wallet import CBitcoinAddress, P2PKHBitcoinAddress, CBitcoinAddressError
+from bitcoin.wallet import (
+    CBitcoinAddress,
+    P2PKHBitcoinAddress,
+    TestNetP2PKHBitcoinAddress,
+    CBitcoinAddressError
+)
 from pycoin.key.BIP32Node import BIP32Node
 from pycoin.encoding import EncodingError
 
@@ -141,27 +146,33 @@ class Transactions(object):
                 [{'txid': '...', 'vout': 0, 'amount': 10000}, ...]
             outputs (list): outputs in the form of
                 [{'address': '...', 'value': 5000}, {'script': CScript([...]), 'value': 0}, ...]
-
         Returns:
             CMutableTransaction: unsigned transaction object
         """
+        # Create transaction inputs
         txins = [CMutableTxIn(COutPoint(lx(input['txid']), input['vout'])) for input in inputs]
         
+        # Create transaction outputs
         txouts = []
         for output in outputs:
             if 'script' in output:
+                # OP_RETURN output or other custom scripts
                 txouts.append(CMutableTxOut(output['value'], output['script']))
             else:
                 try:
                     if self.testnet:
-                        addr = P2PKHBitcoinAddress.from_bytes(output['address'].encode('utf-8'), 111)  # Testnet prefix
+                        # Use TestNetP2PKHBitcoinAddress for testnet
+                        addr = TestNetP2PKHBitcoinAddress.from_string(output['address'])
                     else:
+                        # Use P2PKHBitcoinAddress for mainnet
                         addr = P2PKHBitcoinAddress.from_string(output['address'])
                     txouts.append(CMutableTxOut(output['value'], addr.to_scriptPubKey()))
                 except CBitcoinAddressError as e:
                     raise ValueError(f"Invalid Bitcoin address: {output['address']}") from e
 
+        # Create the unsigned transaction
         return CMutableTransaction(txins, txouts)
+
 
     def sign_transaction(self, tx, master_password, path=''):
         """
