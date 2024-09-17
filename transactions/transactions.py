@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import, division, unicode_literals
 from builtins import object
-import codecs
 import logging
 import os
 from decimal import Decimal
@@ -20,6 +19,7 @@ logging.basicConfig(level=logging.DEBUG)
 
 SERVICES = ['daemon']
 
+
 class Transactions(object):
     """
     Transactions: Bitcoin for Humans
@@ -29,14 +29,14 @@ class Transactions(object):
 
     # Transaction fee per 1k bytes (satoshi)
     _min_tx_fee = 10000
-    # dust threshold (satoshi)
+    # Dust threshold (satoshi)
     _dust = 600
 
     def __init__(self, service='daemon', testnet=True, username='', password='', host='', port='', wallet_filename=''):
         """
         Args:
-            service (str): currently supports 'daemon' for Bitcoin daemon.
-            testnet (bool): use True for testnet, False for mainnet.
+            service (str): Currently supports 'daemon' for Bitcoin daemon.
+            testnet (bool): Use True for testnet, False for mainnet.
             username (str): RPC username for the Bitcoin daemon.
             password (str): RPC password for the Bitcoin daemon.
             host (str): Host address of the Bitcoin daemon.
@@ -71,13 +71,12 @@ class Transactions(object):
         """
         return self._service.push_tx(raw_tx)
 
-    def get(self, identifier, account="*", max_transactions=100, min_confirmations=6, raw=False):
+    def get(self, identifier, max_transactions=100, min_confirmations=6, raw=False):
         """
         Retrieve transactions or a specific transaction.
 
         Args:
             identifier (str): Bitcoin address or transaction ID.
-            account (Optional[str]): Account name for RPC calls.
             max_transactions (int): Maximum number of transactions to retrieve.
             min_confirmations (int): Minimum number of confirmations for UTXOs.
             raw (bool): If True, return raw transaction data.
@@ -85,13 +84,29 @@ class Transactions(object):
         Returns:
             dict or str: Transaction details or raw transaction hex.
         """
+        logging.debug(f"Transactions.get called with identifier={identifier}, "
+                      f"max_transactions={max_transactions}, min_confirmations={min_confirmations}, raw={raw}")
+
         if len(identifier) < 64:
-            txs = self._service.list_transactions(identifier, account=account, max_transactions=max_transactions)
-            unspents = self._service.list_unspents(identifier, min_confirmations=min_confirmations)
-            return {'transactions': txs, 'unspents': unspents}
+            # Assume it's a Bitcoin address
+            try:
+                txs = self._service.list_received_by_address(address=identifier, minconf=min_confirmations)
+                unspents = self._service.list_unspents(address=identifier, min_confirmations=min_confirmations)
+                return {'transactions': txs, 'unspents': unspents}
+            except Exception as e:
+                logging.error(f"Error retrieving transactions for address {identifier}: {e}")
+                raise
         else:
-            return self._service.get_transaction(identifier, raw=raw)
-    
+            # Assume it's a transaction ID
+            try:
+                transaction = self._service.get_transaction(txid=identifier, raw=raw)
+                if raw:
+                    return {'transactions': transaction}
+                else:
+                    return {'transactions': transaction}
+            except Exception as e:
+                logging.error(f"Error retrieving transaction {identifier}: {e}")
+                raise
 
     def import_address(self, address, account="", rescan=False):
         """
@@ -103,7 +118,12 @@ class Transactions(object):
             rescan (bool): Whether to rescan the blockchain for transactions.
         """
         if isinstance(self._service, BitcoinDaemonService):
-            self._service.import_address(address, account, rescan=rescan)
+            try:
+                self._service.import_address(address, account, rescan=rescan)
+                logging.debug(f"Imported address {address} with account '{account}' and rescan={rescan}.")
+            except Exception as e:
+                logging.error(f"Error importing address {address}: {e}")
+                raise
 
     def validate_address(self, address):
         """
@@ -157,7 +177,9 @@ class Transactions(object):
             outputs.append(CMutableTxOut(0, op_return_script))
 
         # Build the unsigned transaction
-        return CMutableTransaction(inputs, outputs)
+        tx = CMutableTransaction(inputs, outputs)
+        logging.debug(f"Created unsigned transaction with {len(inputs)} inputs and {len(outputs)} outputs.")
+        return tx
 
     def build_transaction(self, inputs, outputs):
         """
@@ -170,7 +192,9 @@ class Transactions(object):
         Returns:
             CMutableTransaction: Unsigned transaction object.
         """
-        return CMutableTransaction(inputs, outputs)
+        tx = CMutableTransaction(inputs, outputs)
+        logging.debug(f"Built unsigned transaction with {len(inputs)} inputs and {len(outputs)} outputs.")
+        return tx
 
     def sign_transaction(self, tx, private_key_wif):
         """
@@ -188,19 +212,27 @@ class Transactions(object):
         address = P2PKHBitcoinAddress.from_pubkey(public_key)
 
         # Fetch UTXOs for the from_address
-        unspents = self._service.list_unspents(address)
+        try:
+            unspents = self._service.list_unspents(address=address, min_confirmations=6)
+        except Exception as e:
+            logging.error(f"Error fetching UTXOs for address {address}: {e}")
+            raise
 
         for i, txin in enumerate(tx.vin):
+            if i >= len(unspents):
+                logging.error(f"Not enough unspent outputs to sign input {i}.")
+                raise Exception(f"Not enough unspent outputs to sign input {i}.")
+
             utxo = unspents[i]
             script_pubkey = utxo['scriptPubKey']
             amount = utxo['amount']
-            sighash = SignatureHash(CScript(x(script_pubkey)), tx, i, SIGHASH_ALL)
+            sighash = SignatureHash(CScript(bytes.fromhex(script_pubkey)), tx, i, SIGHASH_ALL)
             sig = secret.sign(sighash) + bytes([SIGHASH_ALL])
             txin.scriptSig = CScript([sig, public_key])
 
             # Verify the signature
             try:
-                VerifyScript(txin.scriptSig, CScript(x(script_pubkey)), tx, i, (SCRIPT_VERIFY_P2SH,))
+                VerifyScript(txin.scriptSig, CScript(bytes.fromhex(script_pubkey)), tx, i, (SCRIPT_VERIFY_P2SH,))
                 logging.debug(f"Input {i} signature verified.")
             except Exception as e:
                 logging.error(f"Signature verification failed for input {i}: {e}")
@@ -208,6 +240,7 @@ class Transactions(object):
 
         # Serialize the transaction
         signed_tx_hex = b2x(tx.serialize())
+        logging.debug(f"Signed transaction: {signed_tx_hex}")
         return signed_tx_hex
 
     def _select_inputs(self, address, amount, n_outputs=2, min_confirmations=6):
@@ -223,7 +256,12 @@ class Transactions(object):
         Returns:
             tuple: Selected inputs (list of CMutableTxIn) and change amount.
         """
-        unspents = self._service.list_unspents(address, min_confirmations=min_confirmations)
+        try:
+            unspents = self._service.list_unspents(address=address, min_confirmations=min_confirmations)
+        except Exception as e:
+            logging.error(f"Error listing unspents for address {address}: {e}")
+            raise
+
         if not unspents:
             raise Exception("No spendable outputs found.")
 
@@ -252,6 +290,7 @@ class Transactions(object):
         # Create CMutableTxIn objects
         inputs = [CMutableTxIn(COutPoint(lx(utxo['txid']), utxo['vout'])) for utxo in selected]
 
+        logging.debug(f"Selected {len(selected)} UTXOs totaling {total} satoshis with change {change} satoshis.")
         return inputs, change
 
     def _op_return_script(self, data):
@@ -278,7 +317,9 @@ class Transactions(object):
             int: Estimated fee in satoshi.
         """
         estimated_size = 180 * n_inputs + 34 * n_outputs + 10
-        return (estimated_size // 1000 + 1) * self._min_tx_fee
+        fee = (estimated_size // 1000 + 1) * self._min_tx_fee
+        logging.debug(f"Estimated fee for {n_inputs} inputs and {n_outputs} outputs: {fee} satoshis.")
+        return fee
 
     def decode(self, raw_tx):
         """
@@ -290,7 +331,13 @@ class Transactions(object):
         Returns:
             dict: Decoded transaction details.
         """
-        return self._service.decode(raw_tx)
+        try:
+            decoded = self._service.decode(raw_tx)
+            logging.debug(f"Decoded transaction: {decoded}")
+            return decoded
+        except Exception as e:
+            logging.error(f"Error decoding transaction {raw_tx}: {e}")
+            raise e
 
     def get_block_raw(self, block):
         """
@@ -302,7 +349,13 @@ class Transactions(object):
         Returns:
             str: Raw block data in hexadecimal format.
         """
-        return self._service.get_block_raw(block)
+        try:
+            raw_block = self._service.get_block_raw(block)
+            logging.debug(f"Retrieved raw block data for block {block}: {raw_block}")
+            return raw_block
+        except Exception as e:
+            logging.error(f"Error retrieving raw block data for block {block}: {e}")
+            raise e
 
     def get_block_info(self, block):
         """
@@ -314,11 +367,18 @@ class Transactions(object):
         Returns:
             dict: Block information.
         """
-        return self._service.get_block_info(block)
+        try:
+            block_info = self._service.get_block_info(block)
+            logging.debug(f"Retrieved block info for block {block}: {block_info}")
+            return block_info
+        except Exception as e:
+            logging.error(f"Error retrieving block info for block {block}: {e}")
+            raise e
 
     # Alias methods
     create = simple_transaction
     sign = sign_transaction
+
 
 class BitcoinDaemonService:
     """
@@ -344,10 +404,16 @@ class BitcoinDaemonService:
         self.wallet_filename = wallet_filename
         self.testnet = testnet
 
-        self.rpc = Proxy(service_url=f'http://{self.username}:{self.password}@{self.host}:{self.port}')
+        # Initialize the RPC connection
+        if self.wallet_filename:
+            self.rpc = Proxy(service_url=f'http://{self.username}:{self.password}@{self.host}:{self.port}/wallet/{self.wallet_filename}')
+        else:
+            self.rpc = Proxy(service_url=f'http://{self.username}:{self.password}@{self.host}:{self.port}')
 
         self._min_transaction_fee = 10000  # Satoshi per kB
         self._min_dust = 600  # Satoshi
+
+        logging.debug(f"Initialized BitcoinDaemonService with wallet '{self.wallet_filename}' on {self.host}:{self.port}.")
 
     def push_tx(self, raw_tx):
         """
@@ -359,7 +425,13 @@ class BitcoinDaemonService:
         Returns:
             str: Transaction ID.
         """
-        return self.rpc.sendrawtransaction(raw_tx)
+        try:
+            txid = self.rpc.sendrawtransaction(raw_tx)
+            logging.debug(f"Broadcasted transaction {txid}.")
+            return txid
+        except Exception as e:
+            logging.error(f"Error broadcasting transaction: {e}")
+            raise e
 
     def get_transaction(self, txid, raw=False):
         """
@@ -372,10 +444,17 @@ class BitcoinDaemonService:
         Returns:
             dict or str: Transaction details or raw transaction.
         """
-        tx = self.rpc.getrawtransaction(txid, 1)
-        if raw:
-            return self.rpc.getrawtransaction(txid, 0)
-        return tx
+        try:
+            tx = self.rpc.getrawtransaction(txid, 1)
+            if raw:
+                raw_tx = self.rpc.getrawtransaction(txid, 0)
+                logging.debug(f"Retrieved raw transaction {txid}: {raw_tx}")
+                return raw_tx
+            logging.debug(f"Retrieved transaction details for {txid}: {tx}")
+            return tx
+        except Exception as e:
+            logging.error(f"Error retrieving transaction {txid}: {e}")
+            raise e
 
     def list_transactions(self, account, max_transactions=100):
         """
@@ -388,7 +467,33 @@ class BitcoinDaemonService:
         Returns:
             list: List of transactions.
         """
-        return self.rpc.listtransactions(account, max_transactions)
+        try:
+            transactions = self.rpc.listtransactions(account, max_transactions)
+            logging.debug(f"Retrieved {len(transactions)} transactions for account '{account}'.")
+            return transactions
+        except Exception as e:
+            logging.error(f"Error listing transactions for account '{account}': {e}")
+            raise e
+
+    def list_received_by_address(self, address, minconf=1, include_empty=False):
+        """
+        List received transactions by address.
+
+        Args:
+            address (str): Bitcoin address.
+            minconf (int): Minimum confirmations.
+            include_empty (bool): Include addresses with zero received.
+
+        Returns:
+            list: List of received transactions.
+        """
+        try:
+            received = self.rpc.listreceivedbyaddress(minconf, include_empty, [address])
+            logging.debug(f"Retrieved {len(received)} received transactions for address '{address}'.")
+            return received
+        except Exception as e:
+            logging.error(f"Error listing received transactions for address '{address}': {e}")
+            raise e
 
     def list_unspents(self, address, min_confirmations=6):
         """
@@ -401,7 +506,13 @@ class BitcoinDaemonService:
         Returns:
             list: List of unspent outputs.
         """
-        return self.rpc.listunspent(min_confirmations, 9999999, [address])
+        try:
+            unspents = self.rpc.listunspent(min_confirmations, 9999999, [address])
+            logging.debug(f"Retrieved {len(unspents)} unspent outputs for address '{address}'.")
+            return unspents
+        except Exception as e:
+            logging.error(f"Error listing unspents for address '{address}': {e}")
+            raise e
 
     def import_address(self, address, account, rescan=False):
         """
@@ -412,7 +523,12 @@ class BitcoinDaemonService:
             account (str): Account name.
             rescan (bool): Whether to rescan the blockchain.
         """
-        self.rpc.importaddress(address, account, rescan)
+        try:
+            self.rpc.importaddress(address, account, rescan)
+            logging.debug(f"Imported address '{address}' with account '{account}' and rescan={rescan}.")
+        except Exception as e:
+            logging.error(f"Error importing address '{address}': {e}")
+            raise e
 
     def decode(self, raw_tx):
         """
@@ -424,7 +540,13 @@ class BitcoinDaemonService:
         Returns:
             dict: Decoded transaction.
         """
-        return self.rpc.decoderawtransaction(raw_tx)
+        try:
+            decoded = self.rpc.decoderawtransaction(raw_tx)
+            logging.debug(f"Decoded transaction: {decoded}")
+            return decoded
+        except Exception as e:
+            logging.error(f"Error decoding transaction {raw_tx}: {e}")
+            raise e
 
     def get_block_raw(self, block):
         """
@@ -436,11 +558,18 @@ class BitcoinDaemonService:
         Returns:
             str: Raw block data in hexadecimal format.
         """
-        if isinstance(block, int):
-            block_hash = self.rpc.getblockhash(block)
-        else:
-            block_hash = block
-        return self.rpc.getblock(block_hash, 0)
+        try:
+            if isinstance(block, int):
+                block_hash = self.rpc.getblockhash(block)
+                logging.debug(f"Retrieved block hash for block number {block}: {block_hash}")
+            else:
+                block_hash = block
+            raw_block = self.rpc.getblock(block_hash, 0)
+            logging.debug(f"Retrieved raw block data for block '{block_hash}'.")
+            return raw_block
+        except Exception as e:
+            logging.error(f"Error retrieving raw block data for block '{block}': {e}")
+            raise e
 
     def get_block_info(self, block):
         """
@@ -452,9 +581,15 @@ class BitcoinDaemonService:
         Returns:
             dict: Block information.
         """
-        if isinstance(block, int):
-            block_hash = self.rpc.getblockhash(block)
-        else:
-            block_hash = block
-        return self.rpc.getblock(block_hash, 2)
-
+        try:
+            if isinstance(block, int):
+                block_hash = self.rpc.getblockhash(block)
+                logging.debug(f"Retrieved block hash for block number {block}: {block_hash}")
+            else:
+                block_hash = block
+            block_info = self.rpc.getblock(block_hash, 2)
+            logging.debug(f"Retrieved block info for block '{block_hash}': {block_info}")
+            return block_info
+        except Exception as e:
+            logging.error(f"Error retrieving block info for block '{block}': {e}")
+            raise e

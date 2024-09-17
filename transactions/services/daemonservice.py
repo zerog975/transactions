@@ -304,14 +304,25 @@ class BitcoinDaemonService:
         Returns:
             dict or str: Transaction details or raw transaction hex.
         """
-        logging.debug(f"get method called with hash_value={hash_value}, account={account}, max_transactions={max_transactions}, min_confirmations={min_confirmations}, raw={raw}")
-        
+        logging.debug(f"get method called with hash_value={hash_value}, account={account}, "
+                      f"max_transactions={max_transactions}, min_confirmations={min_confirmations}, raw={raw}")
+
         if len(hash_value) < 64:  # Likely a Bitcoin address
-            transactions = self.list_transactions(hash_value, account=account, max_transactions=max_transactions)
-            unspents = self.list_unspents(hash_value, min_confirmations=min_confirmations)
+            transactions = self.list_transactions(
+                address=hash_value,
+                account=account,
+                max_transactions=max_transactions
+            )
+            unspents = self.list_unspents(
+                address=hash_value,
+                min_confirmations=min_confirmations
+            )
             return {'transactions': transactions, 'unspents': unspents}
         else:  # Likely a transaction ID
-            transaction = self.get_transaction(hash_value, raw=raw)
+            transaction = self.get_transaction(
+                txid=hash_value,
+                raw=raw
+            )
             if raw:
                 return transaction
             else:
