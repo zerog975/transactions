@@ -138,39 +138,19 @@ class Transactions(object):
         return self.build_transaction(inputs, outputs)
 
     def build_transaction(self, inputs, outputs):
-        """
-        Build transaction using python-bitcoinlib
-
-        Args:
-            inputs (list): inputs in the form of
-                [{'txid': '...', 'vout': 0, 'amount': 10000}, ...]
-            outputs (list): outputs in the form of
-                [{'address': '...', 'value': 5000}, {'script': CScript([...]), 'value': 0}, ...]
-        Returns:
-            CMutableTransaction: unsigned transaction object
-        """
-        # Create transaction inputs
         txins = [CMutableTxIn(COutPoint(lx(input['txid']), input['vout'])) for input in inputs]
         
-        # Create transaction outputs
         txouts = []
         for output in outputs:
             if 'script' in output:
-                # OP_RETURN output or other custom scripts
                 txouts.append(CMutableTxOut(output['value'], output['script']))
             else:
                 try:
-                    if self.testnet:
-                        # Use TestNetP2PKHBitcoinAddress for testnet
-                        addr = TestNetP2PKHBitcoinAddress.from_string(output['address'])
-                    else:
-                        # Use P2PKHBitcoinAddress for mainnet
-                        addr = P2PKHBitcoinAddress.from_string(output['address'])
+                    addr = CBitcoinAddress.from_string(output['address'])
                     txouts.append(CMutableTxOut(output['value'], addr.to_scriptPubKey()))
                 except CBitcoinAddressError as e:
                     raise ValueError(f"Invalid Bitcoin address: {output['address']}") from e
 
-        # Create the unsigned transaction
         return CMutableTransaction(txins, txouts)
 
 
