@@ -9,7 +9,6 @@ import json
 import requests
 import logging
 import os
-from .service import BitcoinService
 from transactions.utils import bitcoin_to_satoshi
 from bitcoinrpc.authproxy import AuthServiceProxy
 
@@ -35,8 +34,8 @@ class BitcoinDaemonService:
         # If arguments are provided, they take priority; otherwise, fall back to environment variables
         self._username = username or os.getenv('BITCOIN_RPCUSER')
         self._password = password or os.getenv('BITCOIN_RPCPASSWORD')
-        self._host = host or os.getenv('BITCOIN_HOST')
-        self._port = port or int(os.getenv('BITCOIN_PORT'))
+        self._host = host or os.getenv('BITCOIN_HOST', 'localhost')
+        self._port = port or int(os.getenv('BITCOIN_PORT', '8332'))
         self.wallet_filename = wallet_filename or os.getenv('WALLET_FILENAME')
 
         # Initialize the RPC connection using the _url property
@@ -105,10 +104,10 @@ class BitcoinDaemonService:
             raise
 
     def get_block_raw(self, block_hash):
-        return self.make_request('getblock', (block_hash,))
+        return self.make_request('getblock', [block_hash])
 
     def get_block_info(self, block_hash):
-        return self.make_request('getblockheader', (block_hash,))
+        return self.make_request('getblockheader', [block_hash])
 
     def getinfo(self):
         return self.make_request('getinfo')
@@ -121,9 +120,9 @@ class BitcoinDaemonService:
             numblocks (int): How many blocks are generated immediately.
 
         Returns:
-            blockhashes (List[str]): Hashes of blocks generated.
+            list: Hashes of blocks generated.
         """
-        return self.make_request('generate', (numblocks,))
+        return self.make_request('generate', [numblocks])
 
     def getbalance(self):
         return self.make_request('getbalance')
@@ -132,7 +131,7 @@ class BitcoinDaemonService:
         return self.make_request('getnewaddress')
 
     def send_to_address(self, address, amount):
-        return self.make_request('sendtoaddress', params=(address, amount))
+        return self.make_request('sendtoaddress', [address, amount])
 
     def push_tx(self, tx):
         """
@@ -172,14 +171,17 @@ class BitcoinDaemonService:
             raise Exception(error)
 
         results = response.get('result', [])
+        # Filter transactions related to the specific address and category 'receive'
         results = [tx for tx in results if tx.get('address', '') == address and tx.get('category', '') == 'receive']
 
         out = []
         for tx in results:
-            out.append({'txid': tx['txid'],
-                        'amount': bitcoin_to_satoshi(tx['amount']),
-                        'confirmations': tx['confirmations'],
-                        'time': tx['time']})
+            out.append({
+                'txid': tx['txid'],
+                'amount': bitcoin_to_satoshi(tx['amount']),
+                'confirmations': tx['confirmations'],
+                'time': tx['time']
+            })
         return out
 
     def list_unspents(self, address, min_confirmations):
@@ -191,10 +193,12 @@ class BitcoinDaemonService:
         results = response.get('result', [])
         out = []
         for unspent in results:
-            out.append({'txid': unspent['txid'],
-                        'vout': unspent['vout'],
-                        'amount': bitcoin_to_satoshi(unspent['amount']),
-                        'confirmations': unspent['confirmations']})
+            out.append({
+                'txid': unspent['txid'],
+                'vout': unspent['vout'],
+                'amount': bitcoin_to_satoshi(unspent['amount']),
+                'confirmations': unspent['confirmations']
+            })
         return out
 
     def get_raw_transaction(self, txid):
@@ -228,7 +232,8 @@ class BitcoinDaemonService:
             raw_tx = self.get_raw_transaction(txid)
             return [vout['scriptPubKey']['addresses'][0] for vout in raw_tx['vout'] if vout['n'] == vout_n][0]
         except Exception as e:
-            if e.args and e.args[0] == {'message': 'No information available about transaction', 'code': -5}:
+            if isinstance(e, IndexError):
+                # No address found for this vout
                 return ''
             else:
                 raise
@@ -238,7 +243,8 @@ class BitcoinDaemonService:
             raw_tx = self.get_raw_transaction(txid)
             return [vout['value'] for vout in raw_tx['vout'] if vout['n'] == vout_n][0]
         except Exception as e:
-            if e.args and e.args[0] == {'message': 'No information available about transaction', 'code': -5}:
+            if isinstance(e, IndexError):
+                # No value found for this vout
                 return 0
             else:
                 raise
@@ -277,3 +283,30 @@ class BitcoinDaemonService:
             ]
         })
         return result
+
+    def get(self, identifier, account="*", max_transactions=100, min_confirmations=6, raw=False):
+        """
+        Retrieve transactions or a specific transaction based on the identifier.
+
+        Args:
+            identifier (str): Bitcoin address or transaction ID.
+            account (Optional[str]): Account name for RPC calls.
+            max_transactions (int): Maximum number of transactions to retrieve.
+            min_confirmations (int): Minimum number of confirmations for UTXOs.
+            raw (bool): If True, return raw transaction data.
+
+        Returns:
+            dict or str: Transaction details or raw transaction hex.
+        """
+        logging.debug(f"get method called with identifier={identifier}, account={account}, max_transactions={max_transactions}, min_confirmations={min_confirmations}, raw={raw}")
+        
+        if len(identifier) < 64:  # Likely a Bitcoin address
+            transactions = self.list_transactions(identifier, account=account, max_transactions=max_transactions)
+            unspents = self.list_unspents(identifier, min_confirmations=min_confirmations)
+            return {'transactions': transactions, 'unspents': unspents}
+        else:  # Likely a transaction ID
+            transaction = self.get_transaction(identifier, raw=raw)
+            if raw:
+                return transaction
+            else:
+                return {'transactions': transaction}
