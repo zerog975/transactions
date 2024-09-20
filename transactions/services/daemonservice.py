@@ -30,7 +30,6 @@ class BitcoinDaemonService:
             testnet (bool): Whether to use the testnet or mainnet.
             wallet_filename (str): Bitcoin wallet filename.
         """
-
         # If arguments are provided, they take priority; otherwise, fall back to environment variables
         self._username = username or os.getenv('BITCOIN_RPCUSER')
         self._password = password or os.getenv('BITCOIN_RPCPASSWORD')
@@ -59,6 +58,23 @@ class BitcoinDaemonService:
             return f'http://{self._username}:{self._password}@{self._host}:{self._port}/wallet/{self.wallet_filename}'
         else:
             return f'http://{self._username}:{self._password}@{self._host}:{self._port}'
+
+    # Add public property methods for username, password, host, and port
+    @property
+    def username(self):
+        return self._username
+
+    @property
+    def password(self):
+        return self._password
+
+    @property
+    def host(self):
+        return self._host
+
+    @property
+    def port(self):
+        return self._port
 
     def make_request(self, method, params=None):
         """
